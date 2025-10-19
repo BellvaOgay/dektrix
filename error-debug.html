@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Error Debug Tool</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .error-log {
+            background: #1a1a1a;
+            color: #00ff00;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+            margin: 10px 0;
+        }
+        .error-item {
+            margin: 5px 0;
+            padding: 5px;
+            border-left: 3px solid #ff4444;
+            background: rgba(255, 68, 68, 0.1);
+        }
+        .warning-item {
+            margin: 5px 0;
+            padding: 5px;
+            border-left: 3px solid #ffaa00;
+            background: rgba(255, 170, 0, 0.1);
+        }
+        .info-item {
+            margin: 5px 0;
+            padding: 5px;
+            border-left: 3px solid #0088ff;
+            background: rgba(0, 136, 255, 0.1);
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .clear-btn {
+            background: #dc3545;
+        }
+        .clear-btn:hover {
+            background: #c82333;
+        }
+        .timestamp {
+            color: #666;
+            font-size: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Error Debug Tool</h1>
+        <p>This tool captures and displays all JavaScript errors, warnings, and console messages to help identify the "UnknownError: Internal error".</p>
+        
+        <div>
+            <button onclick="startErrorCapture()">Start Error Capture</button>
+            <button onclick="testMainApp()">Test Main App</button>
+            <button onclick="testWalletConnection()">Test Wallet Connection</button>
+            <button onclick="testDatabaseConnection()">Test Database Connection</button>
+            <button class="clear-btn" onclick="clearLogs()">Clear Logs</button>
+        </div>
+
+        <h3>Error Logs:</h3>
+        <div id="errorLog" class="error-log"></div>
+
+        <h3>Console Output:</h3>
+        <div id="consoleLog" class="error-log"></div>
+    </div>
+
+    <script>
+        let errorCapturing = false;
+        let originalConsole = {};
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logElement = document.getElementById('errorLog');
+            const className = type === 'error' ? 'error-item' : 
+                             type === 'warning' ? 'warning-item' : 'info-item';
+            
+            logElement.innerHTML += `
+                <div class="${className}">
+                    <span class="timestamp">[${timestamp}]</span> 
+                    <strong>${type.toUpperCase()}:</strong> ${message}
+                </div>
+            `;
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+
+        function logConsole(message, type = 'log') {
+            const timestamp = new Date().toLocaleTimeString();
+            const consoleElement = document.getElementById('consoleLog');
+            
+            consoleElement.innerHTML += `
+                <div class="info-item">
+                    <span class="timestamp">[${timestamp}]</span> 
+                    <strong>CONSOLE.${type.toUpperCase()}:</strong> ${message}
+                </div>
+            `;
+            consoleElement.scrollTop = consoleElement.scrollHeight;
+        }
+
+        function startErrorCapture() {
+            if (errorCapturing) {
+                log('Error capture already running', 'warning');
+                return;
+            }
+
+            errorCapturing = true;
+            log('🚀 Starting comprehensive error capture...', 'info');
+
+            // Capture all console methods
+            ['log', 'warn', 'error', 'info', 'debug'].forEach(method => {
+                originalConsole[method] = console[method];
+                console[method] = function(...args) {
+                    logConsole(args.join(' '), method);
+                    originalConsole[method].apply(console, args);
+                };
+            });
+
+            // Global error handler
+            window.addEventListener('error', (event) => {
+                log(`Global Error: ${event.error?.message || event.message} at ${event.filename}:${event.lineno}:${event.colno}`, 'error');
+                if (event.error?.stack) {
+                    log(`Stack: ${event.error.stack}`, 'error');
+                }
+            });
+
+            // Unhandled promise rejections
+            window.addEventListener('unhandledrejection', (event) => {
+                log(`Unhandled Promise Rejection: ${event.reason}`, 'error');
+                if (event.reason?.stack) {
+                    log(`Stack: ${event.reason.stack}`, 'error');
+                }
+            });
+
+            // Capture fetch errors
+            const originalFetch = window.fetch;
+            window.fetch = async function(...args) {
+                try {
+                    log(`🌐 Fetch request: ${args[0]}`, 'info');
+                    const response = await originalFetch.apply(this, args);
+                    if (!response.ok) {
+                        log(`❌ Fetch failed: ${response.status} ${response.statusText} for ${args[0]}`, 'error');
+                    } else {
+                        log(`✅ Fetch success: ${response.status} for ${args[0]}`, 'info');
+                    }
+                    return response;
+                } catch (error) {
+                    log(`💥 Fetch error: ${error.message} for ${args[0]}`, 'error');
+                    throw error;
+                }
+            };
+
+            log('✅ Error capture initialized successfully', 'info');
+        }
+
+        function testMainApp() {
+            log('🧪 Testing main application...', 'info');
+            
+            // Try to access the main app
+            try {
+                const iframe = document.createElement('iframe');
+                iframe.src = 'http://localhost:8080';
+                iframe.style.display = 'none';
+                document.body.appendChild(iframe);
+                
+                iframe.onload = () => {
+                    log('✅ Main app loaded successfully', 'info');
+                    setTimeout(() => document.body.removeChild(iframe), 1000);
+                };
+                
+                iframe.onerror = (error) => {
+                    log(`❌ Main app failed to load: ${error}`, 'error');
+                    document.body.removeChild(iframe);
+                };
+            } catch (error) {
+                log(`💥 Error testing main app: ${error.message}`, 'error');
+            }
+        }
+
+        function testWalletConnection() {
+            log('🔗 Testing wallet connection...', 'info');
+            
+            try {
+                // Check if wallet providers are available
+                if (typeof window.ethereum !== 'undefined') {
+                    log('✅ Ethereum provider detected', 'info');
+                } else {
+                    log('⚠️ No Ethereum provider found', 'warning');
+                }
+
+                // Test wallet connection simulation
+                fetch('http://localhost:8080/src/api/users.ts')
+                    .then(response => {
+                        if (response.ok) {
+                            log('✅ User API endpoint accessible', 'info');
+                        } else {
+                            log(`❌ User API endpoint returned: ${response.status}`, 'error');
+                        }
+                    })
+                    .catch(error => {
+                        log(`💥 Error accessing user API: ${error.message}`, 'error');
+                    });
+
+            } catch (error) {
+                log(`💥 Error testing wallet connection: ${error.message}`, 'error');
+            }
+        }
+
+        function testDatabaseConnection() {
+            log('🗄️ Testing database connection...', 'info');
+            
+            try {
+                // Test database connectivity through API
+                fetch('http://localhost:8080/api/videos')
+                    .then(response => response.json())
+                    .then(data => {
+                        log('✅ Database connection test successful', 'info');
+                        log(`📊 Retrieved ${data?.length || 0} records`, 'info');
+                    })
+                    .catch(error => {
+                        log(`💥 Database connection test failed: ${error.message}`, 'error');
+                    });
+            } catch (error) {
+                log(`💥 Error testing database connection: ${error.message}`, 'error');
+            }
+        }
+
+        function clearLogs() {
+            document.getElementById('errorLog').innerHTML = '';
+            document.getElementById('consoleLog').innerHTML = '';
+            log('🧹 Logs cleared', 'info');
+        }
+
+        // Auto-start error capture when page loads
+        window.addEventListener('load', () => {
+            setTimeout(startErrorCapture, 1000);
+        });
+    </script>
+</body>
+</html>

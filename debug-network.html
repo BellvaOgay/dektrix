@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Network Debug - Wallet Connection</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        .info { background-color: #d1ecf1; color: #0c5460; }
+        .warning { background-color: #fff3cd; color: #856404; }
+        .log-entry {
+            background: #f8f9fa;
+            border-left: 4px solid #007bff;
+            padding: 10px;
+            margin: 5px 0;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .network-log {
+            border-left-color: #28a745;
+        }
+        .error-log {
+            border-left-color: #dc3545;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .clear-btn {
+            background: #6c757d;
+        }
+        .clear-btn:hover {
+            background: #545b62;
+        }
+        #logs {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Network Debug - Wallet Connection</h1>
+        
+        <div class="status info">
+            <strong>Debug Mode:</strong> Monitoring all network requests and API calls
+        </div>
+
+        <div>
+            <button onclick="startNetworkMonitoring()">Start Network Monitoring</button>
+            <button onclick="simulateWalletConnection()">Simulate Wallet Connection</button>
+            <button onclick="testDirectAPICall()">Test Direct API Call</button>
+            <button onclick="clearLogs()" class="clear-btn">Clear Logs</button>
+        </div>
+
+        <div id="status"></div>
+        <div id="logs"></div>
+    </div>
+
+    <script>
+        let originalFetch = window.fetch;
+        let originalXHR = window.XMLHttpRequest;
+        let logs = [];
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toISOString();
+            const logEntry = {
+                timestamp,
+                message,
+                type
+            };
+            logs.push(logEntry);
+            
+            const logsDiv = document.getElementById('logs');
+            const logElement = document.createElement('div');
+            logElement.className = `log-entry ${type}-log`;
+            logElement.innerHTML = `<strong>[${timestamp}]</strong> ${message}`;
+            logsDiv.appendChild(logElement);
+            logsDiv.scrollTop = logsDiv.scrollHeight;
+        }
+
+        function updateStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.className = `status ${type}`;
+            statusDiv.innerHTML = `<strong>Status:</strong> ${message}`;
+        }
+
+        function startNetworkMonitoring() {
+            log('🚀 Starting network monitoring...', 'info');
+            updateStatus('Network monitoring active', 'success');
+
+            // Monitor fetch requests
+            window.fetch = async function(...args) {
+                const url = args[0];
+                const options = args[1] || {};
+                
+                log(`📡 FETCH REQUEST: ${url}`, 'network');
+                log(`📡 FETCH OPTIONS: ${JSON.stringify(options, null, 2)}`, 'network');
+                
+                try {
+                    const response = await originalFetch.apply(this, args);
+                    log(`✅ FETCH RESPONSE: ${response.status} ${response.statusText}`, 'network');
+                    
+                    // Clone response to read body without consuming it
+                    const clonedResponse = response.clone();
+                    try {
+                        const responseText = await clonedResponse.text();
+                        log(`📄 FETCH RESPONSE BODY: ${responseText.substring(0, 500)}${responseText.length > 500 ? '...' : ''}`, 'network');
+                    } catch (e) {
+                        log(`⚠️ Could not read response body: ${e.message}`, 'warning');
+                    }
+                    
+                    return response;
+                } catch (error) {
+                    log(`❌ FETCH ERROR: ${error.message}`, 'error');
+                    throw error;
+                }
+            };
+
+            // Monitor XMLHttpRequest
+            const originalOpen = XMLHttpRequest.prototype.open;
+            const originalSend = XMLHttpRequest.prototype.send;
+
+            XMLHttpRequest.prototype.open = function(method, url, ...args) {
+                this._method = method;
+                this._url = url;
+                log(`📡 XHR OPEN: ${method} ${url}`, 'network');
+                return originalOpen.apply(this, [method, url, ...args]);
+            };
+
+            XMLHttpRequest.prototype.send = function(data) {
+                if (data) {
+                    log(`📡 XHR SEND DATA: ${data}`, 'network');
+                }
+                
+                this.addEventListener('load', () => {
+                    log(`✅ XHR RESPONSE: ${this.status} ${this.statusText}`, 'network');
+                    log(`📄 XHR RESPONSE BODY: ${this.responseText.substring(0, 500)}${this.responseText.length > 500 ? '...' : ''}`, 'network');
+                });
+                
+                this.addEventListener('error', () => {
+                    log(`❌ XHR ERROR: ${this.status} ${this.statusText}`, 'error');
+                });
+                
+                return originalSend.apply(this, arguments);
+            };
+
+            // Monitor console errors
+            const originalConsoleError = console.error;
+            console.error = function(...args) {
+                log(`🔴 CONSOLE ERROR: ${args.join(' ')}`, 'error');
+                return originalConsoleError.apply(this, args);
+            };
+
+            // Monitor unhandled promise rejections
+            window.addEventListener('unhandledrejection', (event) => {
+                log(`🔴 UNHANDLED PROMISE REJECTION: ${event.reason}`, 'error');
+            });
+        }
+
+        async function simulateWalletConnection() {
+            log('🔄 Simulating wallet connection...', 'info');
+            updateStatus('Simulating wallet connection', 'info');
+
+            try {
+                // Simulate the wallet connection process
+                const testWallet = '0x1234567890123456789012345678901234567890';
+                
+                log(`🔗 Connecting wallet: ${testWallet}`, 'info');
+                
+                // This would normally be done by the wallet hook
+                // Let's see if we can access the main app's functions
+                if (window.parent && window.parent !== window) {
+                    log('📱 Trying to access parent window functions...', 'info');
+                    
+                    // Try to trigger wallet connection in parent
+                    window.parent.postMessage({
+                        type: 'DEBUG_WALLET_CONNECT',
+                        walletAddress: testWallet
+                    }, '*');
+                } else {
+                    log('⚠️ No parent window found - running standalone', 'warning');
+                }
+                
+                updateStatus('Wallet connection simulation completed', 'success');
+                
+            } catch (error) {
+                log(`❌ Simulation error: ${error.message}`, 'error');
+                updateStatus('Wallet connection simulation failed', 'error');
+            }
+        }
+
+        async function testDirectAPICall() {
+            log('🧪 Testing direct API call...', 'info');
+            updateStatus('Testing direct API call', 'info');
+
+            try {
+                const testWallet = '0x1234567890123456789012345678901234567890';
+                
+                // Try to make a direct call to the API function
+                // This simulates what the wallet hook should be doing
+                const apiCall = `
+                    import { createOrGetUserByWallet } from '/src/api/users.ts';
+                    const result = await createOrGetUserByWallet('${testWallet}');
+                    console.log('API Result:', result);
+                    return result;
+                `;
+                
+                log(`📝 API Call Code: ${apiCall}`, 'info');
+                
+                // Since we can't directly import ES modules in this context,
+                // let's try to make a fetch request to see if there's an API endpoint
+                try {
+                    const response = await fetch('/api/users/createOrGetUserByWallet', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            walletAddress: testWallet
+                        })
+                    });
+                    
+                    log(`📡 API Response Status: ${response.status}`, 'network');
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        log(`✅ API Response Data: ${JSON.stringify(data, null, 2)}`, 'network');
+                        updateStatus('Direct API call successful', 'success');
+                    } else {
+                        log(`❌ API Response Error: ${response.statusText}`, 'error');
+                        updateStatus('Direct API call failed', 'error');
+                    }
+                } catch (fetchError) {
+                    log(`⚠️ No API endpoint found (expected for Vite app): ${fetchError.message}`, 'warning');
+                    updateStatus('No API endpoint - this is a client-side app', 'warning');
+                }
+                
+            } catch (error) {
+                log(`❌ Direct API test error: ${error.message}`, 'error');
+                updateStatus('Direct API test failed', 'error');
+            }
+        }
+
+        function clearLogs() {
+            logs = [];
+            document.getElementById('logs').innerHTML = '';
+            updateStatus('Logs cleared', 'info');
+        }
+
+        // Listen for messages from parent window
+        window.addEventListener('message', (event) => {
+            if (event.data.type === 'DEBUG_WALLET_RESULT') {
+                log(`📨 Received wallet result: ${JSON.stringify(event.data.result, null, 2)}`, 'info');
+            }
+        });
+
+        // Auto-start monitoring when page loads
+        window.addEventListener('load', () => {
+            startNetworkMonitoring();
+            log('🎯 Debug page loaded and ready', 'info');
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wallet Debug - Dektirk</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .debug-panel {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .warning { background: #fff3cd; color: #856404; }
+        .info { background: #d1ecf1; color: #0c5460; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #6c757d; cursor: not-allowed; }
+        pre {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+        .log-entry {
+            margin: 5px 0;
+            padding: 5px;
+            border-left: 3px solid #007bff;
+            background: #f8f9fa;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔧 Wallet Connection Debug Tool</h1>
+    
+    <div class="debug-panel">
+        <h2>Connection Status</h2>
+        <div id="status" class="status info">Not connected</div>
+        
+        <button id="connectBtn" onclick="connectWallet()">Connect Wallet</button>
+        <button id="disconnectBtn" onclick="disconnectWallet()" disabled>Disconnect</button>
+        <button id="refreshBtn" onclick="refreshUser()" disabled>Refresh User</button>
+        <button id="checkStateBtn" onclick="checkState()" disabled>Check State</button>
+    </div>
+
+    <div class="debug-panel">
+        <h2>Wallet State</h2>
+        <pre id="walletState">No data</pre>
+    </div>
+
+    <div class="debug-panel">
+        <h2>User Data</h2>
+        <pre id="userData">No user data</pre>
+    </div>
+
+    <div class="debug-panel">
+        <h2>Debug Logs</h2>
+        <div id="logs"></div>
+        <button onclick="clearLogs()">Clear Logs</button>
+    </div>
+
+    <script>
+        let wallet = null;
+        let logs = [];
+
+        function addLog(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            logs.push({ timestamp, message, type });
+            updateLogsDisplay();
+            console.log(`[${timestamp}] ${message}`);
+        }
+
+        function updateLogsDisplay() {
+            const logsDiv = document.getElementById('logs');
+            logsDiv.innerHTML = logs.slice(-20).map(log => 
+                `<div class="log-entry">[${log.timestamp}] ${log.message}</div>`
+            ).join('');
+            logsDiv.scrollTop = logsDiv.scrollHeight;
+        }
+
+        function clearLogs() {
+            logs = [];
+            updateLogsDisplay();
+        }
+
+        function updateStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = message;
+            statusDiv.className = `status ${type}`;
+        }
+
+        function updateWalletState(state) {
+            document.getElementById('walletState').textContent = JSON.stringify(state, null, 2);
+        }
+
+        function updateUserData(user) {
+            document.getElementById('userData').textContent = user ? JSON.stringify(user, null, 2) : 'No user data';
+        }
+
+        function updateButtons(isConnected) {
+            document.getElementById('connectBtn').disabled = isConnected;
+            document.getElementById('disconnectBtn').disabled = !isConnected;
+            document.getElementById('refreshBtn').disabled = !isConnected;
+            document.getElementById('checkStateBtn').disabled = !isConnected;
+        }
+
+        async function connectWallet() {
+            try {
+                addLog('🚀 Starting wallet connection...', 'info');
+                updateStatus('Connecting...', 'warning');
+                
+                // This would need to be adapted to work with your actual wallet hook
+                // For now, we'll simulate the connection process
+                addLog('⚠️ This is a debug page - actual connection needs to be implemented', 'warning');
+                
+                // Simulate connection
+                setTimeout(() => {
+                    const mockState = {
+                        isConnected: true,
+                        address: '0x1234567890123456789012345678901234567890',
+                        isConnecting: false,
+                        error: null,
+                        user: null, // This is the problem we're debugging
+                        isNewUser: false
+                    };
+                    
+                    updateWalletState(mockState);
+                    updateStatus('Connected but user not found!', 'error');
+                    updateButtons(true);
+                    addLog('❌ ISSUE REPRODUCED: Wallet connected but user is null', 'error');
+                }, 2000);
+                
+            } catch (error) {
+                addLog(`❌ Connection failed: ${error.message}`, 'error');
+                updateStatus(`Connection failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function disconnectWallet() {
+            try {
+                addLog('🔌 Disconnecting wallet...', 'info');
+                updateStatus('Disconnected', 'info');
+                updateWalletState({ isConnected: false, address: null, user: null });
+                updateUserData(null);
+                updateButtons(false);
+                addLog('✅ Wallet disconnected successfully', 'success');
+            } catch (error) {
+                addLog(`❌ Disconnect failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function refreshUser() {
+            try {
+                addLog('🔄 Refreshing user data...', 'info');
+                // Simulate user refresh
+                setTimeout(() => {
+                    addLog('⚠️ User refresh simulation - implement actual refresh logic', 'warning');
+                }, 1000);
+            } catch (error) {
+                addLog(`❌ Refresh failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function checkState() {
+            addLog('🔍 Checking current wallet state...', 'info');
+            const state = {
+                isConnected: true,
+                address: '0x1234567890123456789012345678901234567890',
+                hasUser: false,
+                userObject: null
+            };
+            
+            if (state.isConnected && state.address && !state.hasUser) {
+                addLog('⚠️ DETECTED: Wallet connected but user not found!', 'error');
+                addLog(`Connected Address: ${state.address}`, 'info');
+                addLog(`User Object: ${state.userObject}`, 'info');
+            }
+        }
+
+        // Initialize
+        addLog('🔧 Debug tool initialized', 'success');
+        updateStatus('Ready to test wallet connection', 'info');
+    </script>
+</body>
+</html>

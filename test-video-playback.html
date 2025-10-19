@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Playback Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: #1a1a1a;
+            color: white;
+        }
+        video {
+            width: 100%;
+            max-width: 800px;
+            height: auto;
+            border: 2px solid #333;
+            border-radius: 8px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #333;
+            border-radius: 8px;
+        }
+        .error {
+            color: #ff6b6b;
+            font-weight: bold;
+        }
+        .success {
+            color: #51cf66;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1>Video Playback Test</h1>
+    
+    <div class="test-section">
+        <h2>Test 1: Vid4.mp4 Direct Path</h2>
+        <video controls preload="metadata" id="video1">
+            <source src="/videos/Vid4.mp4" type="video/mp4">
+            Your browser does not support the video tag.
+        </video>
+        <p id="status1">Loading...</p>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 2: Vid3.mp4 (Working Video)</h2>
+        <video controls preload="metadata" id="video2">
+            <source src="/videos/Vid3.mp4" type="video/mp4">
+            Your browser does not support the video tag.
+        </video>
+        <p id="status2">Loading...</p>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 3: Vid1.mp4 (Working Video)</h2>
+        <video controls preload="metadata" id="video3">
+            <source src="/videos/Vid1.mp4" type="video/mp4">
+            Your browser does not support the video tag.
+        </video>
+        <p id="status3">Loading...</p>
+    </div>
+
+    <script>
+        function setupVideoTest(videoId, statusId, videoName) {
+            const video = document.getElementById(videoId);
+            const status = document.getElementById(statusId);
+            
+            video.addEventListener('loadstart', () => {
+                status.innerHTML = `<span class="success">✓ ${videoName} load started</span>`;
+                console.log(`${videoName} load started`);
+            });
+            
+            video.addEventListener('loadedmetadata', () => {
+                status.innerHTML = `<span class="success">✓ ${videoName} metadata loaded - Duration: ${video.duration}s</span>`;
+                console.log(`${videoName} metadata loaded, duration: ${video.duration}`);
+            });
+            
+            video.addEventListener('canplay', () => {
+                status.innerHTML = `<span class="success">✓ ${videoName} can play - Ready for playback</span>`;
+                console.log(`${videoName} can play`);
+            });
+            
+            video.addEventListener('error', (e) => {
+                const error = video.error;
+                let errorMsg = 'Unknown error';
+                if (error) {
+                    switch(error.code) {
+                        case error.MEDIA_ERR_ABORTED:
+                            errorMsg = 'Media loading aborted';
+                            break;
+                        case error.MEDIA_ERR_NETWORK:
+                            errorMsg = 'Network error';
+                            break;
+                        case error.MEDIA_ERR_DECODE:
+                            errorMsg = 'Media decode error';
+                            break;
+                        case error.MEDIA_ERR_SRC_NOT_SUPPORTED:
+                            errorMsg = 'Media source not supported';
+                            break;
+                    }
+                }
+                status.innerHTML = `<span class="error">✗ ${videoName} error: ${errorMsg}</span>`;
+                console.error(`${videoName} error:`, error, e);
+            });
+        }
+
+        setupVideoTest('video1', 'status1', 'Vid4.mp4');
+        setupVideoTest('video2', 'status2', 'Vid3.mp4');
+        setupVideoTest('video3', 'status3', 'Vid1.mp4');
+    </script>
+</body>
+</html>
