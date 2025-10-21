@@ -67,9 +67,4 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       details: error.message
     });
   }
-} 
-      error: 'Internal server error',
-      message: process.env.NODE_ENV === 'development' ? error.message : 'Failed to fetch user data'
-    });
-  }
 }

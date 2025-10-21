@@ -120,7 +120,3 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   }
 }
-      message: process.env.NODE_ENV === 'development' ? error.message : 'Failed to create or get user'
-    });
-  }
-}

@@ -75,29 +75,3 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   }
 }
-    await user.save();
-
-    console.log(`✅ Added ${add} credits to user ${walletAddress}. New balance: ${user.viewCredits}`);
-
-    return res.status(200).json({
-      success: true,
-      data: {
-        viewCredits: user.viewCredits,
-        creditsAdded: add,
-        user: {
-          _id: user._id,
-          username: user.username,
-          walletAddress: user.walletAddress,
-          viewCredits: user.viewCredits
-        }
-      }
-    });
-
-  } catch (error: any) {
-    console.error('❌ Error adding view credits:', error);
-    return res.status(500).json({ 
-      success: false, 
-      error: 'Failed to add view credits' 
-    });
-  }
-}
