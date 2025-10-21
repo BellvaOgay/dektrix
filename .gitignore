@@ -24,3 +24,10 @@ dist-ssr
 *.sw?
 
 .vercel
+
+# Environment files
+.env.vercel
+
+# Test files
+test-*.cjs
+*-test.cjs

@@ -102,12 +102,19 @@ All colors MUST be HSL.
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
-    background-attachment: fixed;
+    background-attachment: scroll;
     height: 100vh;
     width: 100vw;
     margin: 0;
     padding: 0;
     overflow-x: hidden;
+  }
+
+  /* Use fixed background on desktop only */
+  @media (min-width: 768px) {
+    body {
+      background-attachment: fixed;
+    }
   }
 
   #root {

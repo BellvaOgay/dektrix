@@ -3,12 +3,17 @@ import Navbar from "../components/Navbar";
 import { Play, Clock, User, Lock, Coins } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn, getPerViewChargeDisplay } from "@/lib/utils";
-import { getGenericVideos, type GenericVideo } from "@/api/generic-videos";
+import { getVideos } from "@/api/videos";
+import { deductCreditOnPlay } from "@/api/videos";
+import { useBaseWallet } from "@/hooks/useBaseWallet";
 
 const GenericVideos = () => {
-  const [videos, setVideos] = useState<GenericVideo[]>([]);
+  const [videos, setVideos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isHovered, setIsHovered] = useState<string | null>(null);
+  const [deductedVideos, setDeductedVideos] = useState<Set<string>>(new Set());
+  
+  const { user: walletUser } = useBaseWallet();
 
   useEffect(() => {
     fetchGenericVideos();
@@ -16,8 +21,12 @@ const GenericVideos = () => {
 
   const fetchGenericVideos = async () => {
     try {
-      const data = await getGenericVideos();
-      setVideos(data);
+      const result = await getVideos({ limit: 20 });
+      if (result.success) {
+        setVideos(result.data);
+      } else {
+        console.error('Failed to fetch videos:', result.error);
+      }
     } catch (error) {
       console.error('Error fetching generic videos:', error);
     } finally {
@@ -26,6 +35,31 @@ const GenericVideos = () => {
   };
 
   const perViewDisplay = getPerViewChargeDisplay();
+
+  // Handle credit deduction when video starts playing
+  const handleVideoPlay = async (videoId: string) => {
+    if (!walletUser?.walletAddress || !videoId || deductedVideos.has(videoId)) {
+      return;
+    }
+
+    try {
+      const result = await deductCreditOnPlay(walletUser.walletAddress, videoId);
+      
+      if (result.success) {
+        setDeductedVideos(prev => new Set(prev).add(videoId));
+        console.log('Credit deducted successfully for video:', videoId);
+      } else {
+        console.error('Failed to deduct credit:', result.error);
+        // If credit deduction fails, pause the video
+        const videoElement = document.querySelector(`video[data-video-id="${videoId}"]`) as HTMLVideoElement;
+        if (videoElement) {
+          videoElement.pause();
+        }
+      }
+    } catch (error) {
+      console.error('Error during credit deduction:', error);
+    }
+  };
 
   if (loading) {
     return (
@@ -83,15 +117,67 @@ const GenericVideos = () => {
                 >
                   {/* Video Preview Area */}
                   <div className="relative aspect-[9/16] bg-gradient-to-br from-primary/20 to-accent/20">
-                    {/* Always render playable video */}
-                    <video
-                      className="absolute inset-0 w-full h-full object-cover"
-                      src={video.videoUrl}
-                      controls
-                      preload="metadata"
-                      poster={video.thumbnail || "/placeholder.svg"}
-                      aria-label={`Video player for ${video.title}`}
-                    />
+                    {/* Check if user has credits to watch videos */}
+                    {walletUser && walletUser.viewCredits > 0 ? (
+                      <video
+                        className="absolute inset-0 w-full h-full object-cover"
+                        src={video.videoUrl}
+                        controls
+                        preload="metadata"
+                        poster={video.thumbnail || "/placeholder.svg"}
+                        aria-label={`Video player for ${video.title}`}
+                        data-video-id={video._id}
+                        onPlay={() => handleVideoPlay(video._id)}
+                      />
+                    ) : (
+                      <>
+                        {/* Thumbnail Image */}
+                        <img
+                          src={video.thumbnail || "/placeholder.svg"}
+                          alt={`Thumbnail for ${video.title}`}
+                          className="absolute inset-0 w-full h-full object-cover"
+                          loading="lazy"
+                        />
+
+                        {/* Lock Overlay for videos when no credits available */}
+                        {walletUser && walletUser.viewCredits <= 0 && (
+                          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center z-20 rounded-lg">
+                            <div className="w-8 h-8 text-white mb-2">
+                              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+                              </svg>
+                            </div>
+                            <p className="text-white text-sm font-medium mb-3 text-center px-4">
+                              No credits remaining
+                            </p>
+                            <p className="text-white/70 text-xs mb-3 text-center px-4">
+                              Purchase more views to continue watching
+                            </p>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                // Dispatch custom event for credit purchase
+                                window.dispatchEvent(new CustomEvent('purchaseCredits'));
+                              }}
+                              className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 hover:scale-105"
+                            >
+                              Buy More Views
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Play button for videos with credits */}
+                        {(!walletUser || walletUser.viewCredits > 0) && (
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <div className="w-16 h-16 text-muted-foreground animate-pulse" aria-hidden="true">
+                              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z" />
+                              </svg>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    )}
 
                     {/* Per-view Price Badge */}
                     <div className="absolute top-3 left-3 bg-background/90 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-medium">

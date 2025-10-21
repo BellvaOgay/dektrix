@@ -41,7 +41,7 @@ export async function createOrGetUserByWallet(walletAddress: string, userData?: 
         videosWatched: [],
         videosUnlocked: [],
         favoriteCategories: [],
-        viewCredits: 10, // Give new users 10 free credits to start
+        viewCredits: 1, // Give new users 1 free credit to start
         userContainer: {
           purchasedVideos: [],
           uploadedVideos: [],

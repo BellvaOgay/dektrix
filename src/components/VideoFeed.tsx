@@ -27,6 +27,42 @@ const VideoFeed = () => {
   const { toast } = useToast();
   const { selectedCategory } = useCategory();
 
+  // Mock videos data for fallback
+  const mockVideos = [
+    {
+      id: 1,
+      title: "AI Agents Are Hiring Each Other Now??? 😱",
+      topic: "AI Agents",
+      category: "AI Agents",
+      duration: 28,
+      price: "0.1 USDC",
+      priceDisplay: "0.1 USDC",
+      tipAmount: 100000,
+      tipAmountDisplay: "0.1 USDC",
+      thumbnail: "",
+      locked: false,
+      isFree: true,
+      description: "Exploring the future of AI agents in the workplace.",
+      videoUrl: "https://www.w3schools.com/html/mov_bbb.mp4"
+    },
+    {
+      id: 2,
+      title: "Smart Contracts Explained Simply",
+      topic: "Blockchain",
+      category: "Education",
+      duration: 15,
+      price: "0.05 USDC",
+      priceDisplay: "0.05 USDC",
+      tipAmount: 50000,
+      tipAmountDisplay: "0.05 USDC",
+      thumbnail: "",
+      locked: false,
+      isFree: true,
+      description: "A playful breakdown of smart contracts with simple analogies.",
+      videoUrl: "https://www.w3schools.com/html/mov_bbb.mp4"
+    },
+  ];
+
   // Debug wallet state changes
   useEffect(() => {
     // Listen for credit purchase events from VideoCard components
@@ -46,8 +82,14 @@ const VideoFeed = () => {
       userCredits: walletUser?.viewCredits
     });
   }, [isConnected, address, walletUser]);
+  // Handle credit update callback from VideoCard
+  const handleCreditUpdate = async (remainingCredits: number) => {
+    console.log('Credit updated, refreshing user data...');
+    await refreshUser();
+  };
+
   const getVideoSrc = (video: any) => {
-    const url = video?.videoUrl || '';
+    const url = video.videoUrl || video.src;
     if (!url) return '';
     if (/^https?:\/\//i.test(url)) return url;
     // For local videos, serve directly from public directory
@@ -320,9 +362,9 @@ const VideoFeed = () => {
             // Check if user has unlocked this video
             const isVideoUnlocked = walletUser?.videosUnlocked?.includes(id) || false;
             
-            // ALL videos are now locked if user has no credits
+            // Lock videos when user has no credits (0 or less)
             const hasCredits = walletUser?.viewCredits > 0;
-            const isVideoLocked = !hasCredits; // Lock ALL videos when no credits
+            const isVideoLocked = false; // TEMPORARILY DISABLED FOR TESTING - Lock ALL videos when no credits
             
             const videoPrice = video.price || 100000; // Default 0.1 USDC in wei
             const videoPriceDisplay = video.priceDisplay || "0.1 USDC";
@@ -340,6 +382,8 @@ const VideoFeed = () => {
                 priceDisplay={videoPriceDisplay}
                 isLocked={isVideoLocked}
                 isFree={video.isFree || false}
+                videoId={id}
+                onCreditUpdate={handleCreditUpdate}
                 onUnlock={(paymentMethod) => handleVideoUnlock(id, paymentMethod)}
                 onClick={async () => {
                   try {
@@ -377,97 +421,6 @@ const VideoFeed = () => {
   );
 };
 
-const mockVideos = [
-  {
-    id: 1,
-    title: "AI Agents Are Hiring Each Other Now??? 😱",
-    topic: "AI Agents",
-    category: "AI Agents",
-    duration: 28,
-    price: "0.1 USDC",
-    priceDisplay: "0.1 USDC",
-    tipAmount: 100000,
-    tipAmountDisplay: "0.1 USDC",
-    thumbnail: "",
-    locked: true,
-    isFree: false,
-  },
-  {
-    id: 2,
-    title: "Your Grandma Could Trade DeFi After This",
-    topic: "DeFi",
-    category: "DeFi",
-    duration: 35,
-    price: "0.1 USDC",
-    priceDisplay: "0.1 USDC",
-    tipAmount: 100000,
-    tipAmountDisplay: "0.1 USDC",
-    thumbnail: "",
-    locked: false,
-    isFree: true, // This is a free video
-    description: "A friendly intro to trading in decentralized finance platforms.",
-    videoUrl: "https://www.w3schools.com/html/mov_bbb.mp4"
-  },
-  {
-    id: 3,
-    title: "NFTs Aren't Dead, You're Just Using Them Wrong",
-    topic: "NFTs",
-    category: "NFTs",
-    duration: 42,
-    price: "0.1 USDC",
-    priceDisplay: "0.1 USDC",
-    tipAmount: 100000,
-    tipAmountDisplay: "0.1 USDC",
-    thumbnail: "",
-    locked: true,
-    isFree: false,
-  },
-  {
-    id: 4,
-    title: "Prediction Markets Will Replace Polls (Here's Why)",
-    topic: "Prediction Markets",
-    category: "Prediction Markets",
-    duration: 31,
-    price: "0.1 USDC",
-    priceDisplay: "0.1 USDC",
-    tipAmount: 100000,
-    tipAmountDisplay: "0.1 USDC",
-    thumbnail: "",
-    locked: false,
-    isFree: true, // This is a free video
-    description: "Why crowdsourced prediction beats traditional polling methodologies.",
-    videoUrl: "https://www.w3schools.com/html/mov_bbb.mp4"
-  },
-  {
-    id: 5,
-    title: "How to NOT Get Rugged in 30 Seconds",
-    topic: "Web3 Security",
-    category: "Web3 Security",
-    duration: 30,
-    price: "0.1 USDC",
-    priceDisplay: "0.1 USDC",
-    tipAmount: 100000,
-    tipAmountDisplay: "0.1 USDC",
-    thumbnail: "",
-    locked: true,
-    isFree: false,
-  },
-  {
-    id: 6,
-    title: "Smart Contracts Explained Like You're 5 (But Make It Spicy)",
-    topic: "DeFi",
-    category: "DeFi",
-    duration: 38,
-    price: "0.1 USDC",
-    priceDisplay: "0.1 USDC",
-    tipAmount: 100000,
-    tipAmountDisplay: "0.1 USDC",
-    thumbnail: "",
-    locked: false,
-    isFree: true, // This is a free video
-    description: "A playful breakdown of smart contracts with simple analogies.",
-    videoUrl: "https://www.w3schools.com/html/mov_bbb.mp4"
-  },
-];
+
 
 export default VideoFeed;

@@ -548,3 +548,40 @@ export async function recordVideoView(videoId: string, userId?: string) {
     };
   }
 }
+
+// Function to deduct credit when video starts playing
+export async function deductCreditOnPlay(walletAddress: string, videoId: string) {
+  try {
+    const response = await fetch('/api/videos/deduct-credit', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        walletAddress,
+        videoId
+      }),
+    });
+
+    const data = await response.json();
+    
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to deduct credit');
+    }
+
+    return {
+      success: true,
+      data: {
+        remainingCredits: data.remainingCredits,
+        transaction: data.transaction,
+        message: data.message
+      }
+    };
+  } catch (error) {
+    console.error('Error deducting credit on play:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
+  }
+}

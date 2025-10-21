@@ -2,6 +2,8 @@ import { useState } from "react";
 import { Play, Lock, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { calculateBasePayPrice, isBasePayEnabled } from "@/lib/utils";
+import { deductCreditOnPlay } from "@/api/videos";
+import { useBaseWallet } from "@/hooks/useBaseWallet";
 
 interface VideoCardProps {
   title: string;
@@ -16,6 +18,8 @@ interface VideoCardProps {
   isLocked?: boolean;
   isFree?: boolean;
   onUnlock?: (paymentMethod: 'crypto' | 'basepay') => void;
+  videoId?: string; // Video ID for credit deduction
+  onCreditUpdate?: (remainingCredits: number) => void; // Callback for credit updates
 }
 
 const VideoCard = ({ 
@@ -30,13 +34,54 @@ const VideoCard = ({
   priceDisplay = "Free",
   isLocked = false,
   isFree = true,
-  onUnlock
+  onUnlock,
+  videoId,
+  onCreditUpdate
 }: VideoCardProps) => {
   const [isHovered, setIsHovered] = useState(false);
   const [showPaymentOptions, setShowPaymentOptions] = useState(false);
+  const [hasDeductedCredit, setHasDeductedCredit] = useState(false);
+  
+  const { user: walletUser } = useBaseWallet();
 
   const basePayEnabled = isBasePayEnabled();
   const basePayPricing = price > 0 ? calculateBasePayPrice(price) : null;
+
+  // Handle credit deduction when video starts playing
+  const handleVideoPlay = async () => {
+    // TEMPORARILY DISABLED FOR TESTING - Skip credit deduction to prevent auto-pause
+    return;
+    
+    if (!walletUser?.walletAddress || !videoId || hasDeductedCredit) {
+      return;
+    }
+
+    try {
+      const result = await deductCreditOnPlay(walletUser.walletAddress, videoId);
+      
+      if (result.success) {
+        setHasDeductedCredit(true);
+        console.log('Credit deducted successfully:', result.data.message);
+        
+        // Update parent component with new credit balance
+        if (onCreditUpdate && result.data.remainingCredits !== undefined) {
+          onCreditUpdate(result.data.remainingCredits);
+        }
+        
+        // Trigger a refresh of user data to update credits in navbar
+        // This will be handled by the parent component that has access to refreshUser
+      } else {
+        console.error('Failed to deduct credit:', result.error);
+        // If credit deduction fails, pause the video
+        const videoElement = document.querySelector(`video[data-video-id="${videoId}"]`) as HTMLVideoElement;
+        if (videoElement) {
+          videoElement.pause();
+        }
+      }
+    } catch (error) {
+      console.error('Error during credit deduction:', error);
+    }
+  };
 
   const handleClick = () => {
     // Prevent video playback if locked (no credits available)
@@ -129,6 +174,8 @@ const VideoCard = ({
             preload="metadata"
             poster={thumbnail}
             aria-label={`Video player for ${title}`}
+            data-video-id={videoId}
+            onPlay={handleVideoPlay}
             onError={(e) => {
               // Silently handle video load errors to reduce console spam
               // The error suppression is handled globally in useBaseWallet
@@ -152,7 +199,10 @@ const VideoCard = ({
               <div className="absolute inset-0 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center z-20 rounded-lg">
                 <Lock className="w-8 h-8 text-white mb-2" />
                 <p className="text-white text-sm font-medium mb-3 text-center px-4">
-                  Purchase credits to watch videos
+                  No credits remaining
+                </p>
+                <p className="text-white/70 text-xs mb-3 text-center px-4">
+                  Purchase more views to continue watching
                 </p>
                 <button
                   onClick={(e) => {
@@ -162,7 +212,7 @@ const VideoCard = ({
                   }}
                   className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 hover:scale-105"
                 >
-                  Buy 10 Views ($1 USDC)
+                  Buy More Views
                 </button>
               </div>
             )}
