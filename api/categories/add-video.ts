@@ -29,7 +29,7 @@ function parseBody(req: IncomingMessage): Promise<any> {
 }
 
 export default async function handler(
-  req: IncomingMessage & { method?: string; url?: string; query?: any; body?: any }, 
+  req: IncomingMessage & { method?: string; url?: string; query?: any; body?: any },
   res: ServerResponse
 ) {
   // Handle CORS preflight
@@ -52,27 +52,27 @@ export default async function handler(
 
       // Validate required fields
       if (!videoId || !categorySlug) {
-        return send(res, 400, { 
-          success: false, 
-          error: 'videoId and categorySlug are required' 
+        return send(res, 400, {
+          success: false,
+          error: 'videoId and categorySlug are required'
         });
       }
 
       // Check if video exists
       const video = await (Video as any).findById(videoId);
       if (!video) {
-        return send(res, 404, { 
-          success: false, 
-          error: 'Video not found' 
+        return send(res, 404, {
+          success: false,
+          error: 'Video not found'
         });
       }
 
       // Check if category exists
       const category = await (Category as any).findOne({ slug: categorySlug, isActive: true });
       if (!category) {
-        return send(res, 404, { 
-          success: false, 
-          error: 'Category not found or inactive' 
+        return send(res, 404, {
+          success: false,
+          error: 'Category not found or inactive'
         });
       }
 
@@ -121,16 +121,16 @@ export default async function handler(
 
     } catch (error) {
       console.error('Error adding video to category:', error);
-      return send(res, 500, { 
-        success: false, 
-        error: 'Failed to add video to category' 
+      return send(res, 500, {
+        success: false,
+        error: 'Failed to add video to category'
       });
     }
   }
 
   // Method not allowed
-  return send(res, 405, { 
-    success: false, 
-    error: 'Method not allowed. Use POST.' 
+  return send(res, 405, {
+    success: false,
+    error: 'Method not allowed. Use POST.'
   });
 }

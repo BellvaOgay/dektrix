@@ -10,21 +10,21 @@ export async function getCategories(filters?: {
 }) {
   try {
     await connectDB();
-    
+
     const query: any = {};
-    
+
     if (filters?.active !== undefined) {
       query.isActive = filters.active;
     }
-    
+
     if (filters?.featured !== undefined) {
       query.featured = filters.featured;
     }
-    
+
     const categories = await (Category as any).find(query)
       .sort({ featured: -1, order: 1, name: 1 })
       .lean();
-    
+
     return {
       success: true,
       data: categories
@@ -42,16 +42,16 @@ export async function getCategories(filters?: {
 export async function getCategoryBySlug(slug: string) {
   try {
     await connectDB();
-    
+
     const category = await (Category as any).findOne({ slug, isActive: true }).lean();
-    
+
     if (!category) {
       return {
         success: false,
         error: 'Category not found'
       };
     }
-    
+
     return {
       success: true,
       data: category
@@ -69,7 +69,7 @@ export async function getCategoryBySlug(slug: string) {
 export async function createCategory(categoryData: Partial<ICategory>) {
   try {
     await connectDB();
-    
+
     // Generate slug from name if not provided
     if (!categoryData.slug && categoryData.name) {
       categoryData.slug = categoryData.name
@@ -77,10 +77,10 @@ export async function createCategory(categoryData: Partial<ICategory>) {
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/(^-|-$)/g, '');
     }
-    
+
     const category = new Category(categoryData);
     await category.save();
-    
+
     return {
       success: true,
       data: category
@@ -98,20 +98,20 @@ export async function createCategory(categoryData: Partial<ICategory>) {
 export async function updateCategory(categoryId: string, updates: Partial<ICategory>) {
   try {
     await connectDB();
-    
+
     const category = await (Category as any).findByIdAndUpdate(
       categoryId,
       updates,
       { new: true, runValidators: true }
     ).lean();
-    
+
     if (!category) {
       return {
         success: false,
         error: 'Category not found'
       };
     }
-    
+
     return {
       success: true,
       data: category
@@ -204,20 +204,20 @@ export async function addVideoToCategory(videoId: string, categorySlug: string) 
 export async function updateCategoryCounts() {
   try {
     await connectDB();
-    
+
     const categories = await (Category as any).find().lean();
-    
+
     for (const category of categories) {
       const videoCount = await Video.countDocuments({
         category: category.slug,
         isActive: true
       });
-      
+
       await (Category as any).findByIdAndUpdate(category._id, {
         videoCount
       });
     }
-    
+
     return {
       success: true,
       message: 'Category counts updated successfully'
@@ -239,23 +239,23 @@ export async function getVideosByCategory(slug: string, options?: {
 }) {
   try {
     await connectDB();
-    
+
     const query: any = {
       category: slug,
       isActive: true
     };
-    
+
     if (options?.featured !== undefined) {
       query.featured = options.featured;
     }
-    
+
     const videos = await (Video as any).find(query)
       .populate('creator', 'username displayName avatar')
       .sort({ featured: -1, createdAt: -1 })
       .limit(options?.limit || 20)
       .skip(options?.skip || 0)
       .lean();
-    
+
     return {
       success: true,
       data: videos

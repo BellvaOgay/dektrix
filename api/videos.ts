@@ -3,7 +3,13 @@ import { connectDB } from './_lib/database.js';
 import Video from '../src/models/Video.js';
 import User from '../src/models/User.js';
 
-function send(res: ServerResponse, status: number, data: any) {
+interface ApiResponse {
+  success: boolean;
+  data?: any;
+  error?: string;
+}
+
+function send(res: ServerResponse, status: number, data: ApiResponse) {
   res.statusCode = status;
   res.setHeader('Content-Type', 'application/json');
   res.end(JSON.stringify(data));

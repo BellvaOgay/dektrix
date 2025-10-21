@@ -87,7 +87,7 @@ const VideoFeed = () => {
       }
 
       console.log('🛒 Starting credit purchase process...');
-      
+
       const network = getCurrentNetwork();
       const env = (import.meta as any).env ?? {};
       const receiver = env.VITE_CREDITS_RECEIVER_ADDRESS as string | undefined;
@@ -121,21 +121,21 @@ const VideoFeed = () => {
       // After successful onchain payment, grant 10 credits
       console.log('🎯 Adding credits to user account...');
       const res = await addViewCredits(address, 10);
-      
+
       if (res?.success) {
         console.log('✅ Credits added successfully:', res.data);
-        toast({ 
-          title: 'Credits purchased', 
-          description: `You now have ${res.data?.viewCredits || 'more'} view credits.` 
+        toast({
+          title: 'Credits purchased',
+          description: `You now have ${res.data?.viewCredits || 'more'} view credits.`
         });
         await refreshUser();
       } else {
         console.error('❌ Credit update failed:', res);
-        toast({ 
-          title: 'Credits update failed', 
-          description: res?.error || 'Transaction succeeded but credit update failed. Please contact support.' 
+        toast({
+          title: 'Credits update failed',
+          description: res?.error || 'Transaction succeeded but credit update failed. Please contact support.'
         });
-        
+
         // Log transaction details for debugging
         console.error('Transaction succeeded but credit update failed:', {
           txHash,
@@ -146,17 +146,17 @@ const VideoFeed = () => {
       }
     } catch (e: any) {
       console.error('❌ Error purchasing credits:', e);
-      
+
       // Check if it's a transaction error or credit update error
       if (e.message?.includes('transaction')) {
-        toast({ 
-          title: 'Transaction failed', 
-          description: 'Your wallet was not debited. Please try again.' 
+        toast({
+          title: 'Transaction failed',
+          description: 'Your wallet was not debited. Please try again.'
         });
       } else {
-        toast({ 
-          title: 'Purchase failed', 
-          description: e?.message || 'Transaction could not be sent.' 
+        toast({
+          title: 'Purchase failed',
+          description: e?.message || 'Transaction could not be sent.'
         });
       }
     }
@@ -261,11 +261,10 @@ const VideoFeed = () => {
               </div>
             )}
             <button
-              className={`px-3 py-2 rounded text-white text-sm transition-colors ${
-                !isConnected 
-                  ? 'bg-gray-400 cursor-not-allowed opacity-50' 
+              className={`px-3 py-2 rounded text-white text-sm transition-colors ${!isConnected
+                  ? 'bg-gray-400 cursor-not-allowed opacity-50'
                   : 'bg-blue-600 hover:bg-blue-700 cursor-pointer'
-              }`}
+                }`}
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -276,7 +275,7 @@ const VideoFeed = () => {
                 console.log('walletUser:', walletUser);
                 console.log('Button disabled:', !isConnected);
                 console.log('================================');
-                
+
                 if (!isConnected) {
                   console.log('Wallet not connected, button should be disabled');
                   toast({
@@ -286,7 +285,7 @@ const VideoFeed = () => {
                   });
                   return;
                 }
-                
+
                 purchaseCredits();
               }}
               disabled={!isConnected}
@@ -304,7 +303,7 @@ const VideoFeed = () => {
             const isVideoLocked = video.locked && !video.isFree;
             const videoPrice = video.price || 100000; // Default 0.1 USDC in wei
             const videoPriceDisplay = video.priceDisplay || "0.1 USDC";
-            
+
             return (
               <VideoCard
                 key={id}
@@ -329,8 +328,8 @@ const VideoFeed = () => {
                       }
                     }
                     // Video play action - removed console.log for production
-                  } catch (e) { 
-                    console.error('Error playing video:', e); 
+                  } catch (e) {
+                    console.error('Error playing video:', e);
                   }
                 }}
               />

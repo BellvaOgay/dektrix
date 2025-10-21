@@ -20,16 +20,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { walletAddress, creditsToAdd } = req.body;
 
     if (!walletAddress || typeof walletAddress !== 'string') {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Wallet address is required' 
+      return res.status(400).json({
+        success: false,
+        error: 'Wallet address is required'
       });
     }
 
     if (!creditsToAdd || typeof creditsToAdd !== 'number' || creditsToAdd <= 0) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Valid credits amount is required' 
+      return res.status(400).json({
+        success: false,
+        error: 'Valid credits amount is required'
       });
     }
 
@@ -40,12 +40,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Find user by wallet address
     console.log('🔍 Finding user:', walletAddress.toLowerCase());
     const user = await User.findOne({ walletAddress: walletAddress.toLowerCase() });
-    
+
     if (!user) {
       console.log('❌ User not found');
-      return res.status(404).json({ 
-        success: false, 
-        error: 'User not found' 
+      return res.status(404).json({
+        success: false,
+        error: 'User not found'
       });
     }
 
@@ -58,8 +58,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     await user.save();
     console.log('✅ Credits updated successfully');
 
-    return res.status(200).json({ 
-      success: true, 
+    return res.status(200).json({
+      success: true,
       data: {
         walletAddress: user.walletAddress,
         viewCredits: user.viewCredits,
@@ -69,9 +69,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   } catch (error: any) {
     console.error('❌ Error adding credits:', error);
-    return res.status(500).json({ 
-      success: false, 
-      error: error.message || 'Internal server error' 
+    return res.status(500).json({
+      success: false,
+      error: error.message || 'Internal server error'
     });
   }
 }

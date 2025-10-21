@@ -12,6 +12,7 @@ export interface IVideo extends Document {
   priceDisplay: string; // human readable price like "$0.01"
   difficulty: 'Beginner' | 'Intermediate' | 'Advanced';
   creator: mongoose.Types.ObjectId;
+  creatorWallet?: string; // Optional wallet address for API compatibility
   totalViews: number;
   totalUnlocks: number;
   totalTipsEarned: number;

@@ -173,7 +173,7 @@ export async function getVideoById(videoId: string, userId?: string) {
 export async function createVideo(videoData: Partial<IVideo>) {
   try {
     await connectDB();
-    
+
     // In browser environment, use mock storage
     if (typeof window !== 'undefined') {
       logger.debug('🌐 Creating video in mock storage');
@@ -186,16 +186,16 @@ export async function createVideo(videoData: Partial<IVideo>) {
         isActive: true
       };
       mockVideos.push(newVideo);
-      
+
       return {
         success: true,
         data: newVideo
       };
     }
-    
+
     const video = new Video(videoData);
     await video.save();
-    
+
     return {
       success: true,
       data: video
@@ -231,7 +231,7 @@ export async function unlockVideoWithBasePay(userId: string, videoId: string, tr
     }
 
     await connectDB();
-    
+
     // Check if video exists
     const video = await (Video as any).findById(videoId);
     if (!video) {
@@ -240,7 +240,7 @@ export async function unlockVideoWithBasePay(userId: string, videoId: string, tr
         error: 'Video not found'
       };
     }
-    
+
     // Check if user exists
     const user = await (User as any).findById(userId);
     if (!user) {
@@ -249,7 +249,7 @@ export async function unlockVideoWithBasePay(userId: string, videoId: string, tr
         error: 'User not found'
       };
     }
-    
+
     // Check if already unlocked
     if (user.videosUnlocked.includes(videoId)) {
       return {
@@ -257,7 +257,7 @@ export async function unlockVideoWithBasePay(userId: string, videoId: string, tr
         error: 'Video already unlocked'
       };
     }
-    
+
     let finalAmount = transactionData.amount;
     let basePayAmount = 0;
     let basePayApplied = false;
@@ -285,24 +285,24 @@ export async function unlockVideoWithBasePay(userId: string, videoId: string, tr
         paymentMethod: transactionData.paymentMethod,
       },
     });
-    
+
     await transaction.save();
-    
+
     // Update user's unlocked videos
     user.videosUnlocked.push(videoId);
     user.totalTipsSpent += finalAmount;
     await user.save();
-    
+
     // Update video stats
     video.totalUnlocks += 1;
     video.totalTipsEarned += finalAmount;
     await video.save();
-    
+
     // Update creator's earnings
     await (User as any).findByIdAndUpdate(video.creator, {
       $inc: { totalTipsEarned: finalAmount }
     });
-    
+
     return {
       success: true,
       data: {
@@ -344,7 +344,7 @@ export async function unlockVideo(userId: string, videoId: string, transactionDa
     }
 
     await connectDB();
-    
+
     // Check if video exists
     const video = await (Video as any).findById(videoId);
     if (!video) {
@@ -353,7 +353,7 @@ export async function unlockVideo(userId: string, videoId: string, transactionDa
         error: 'Video not found'
       };
     }
-    
+
     // Check if user exists
     const user = await (User as any).findById(userId);
     if (!user) {
@@ -362,7 +362,7 @@ export async function unlockVideo(userId: string, videoId: string, transactionDa
         error: 'User not found'
       };
     }
-    
+
     // Check if already unlocked
     if (user.videosUnlocked.includes(videoId)) {
       return {
@@ -370,7 +370,7 @@ export async function unlockVideo(userId: string, videoId: string, transactionDa
         error: 'Video already unlocked'
       };
     }
-    
+
     const { finalAmount, basePayAmount, basePayApplied } = applyBasePay(transactionData.amount);
 
     // Create transaction record
@@ -387,24 +387,24 @@ export async function unlockVideo(userId: string, videoId: string, transactionDa
         basePayApplied,
       },
     });
-    
+
     await transaction.save();
-    
+
     // Update user's unlocked videos
     user.videosUnlocked.push(videoId);
     user.totalTipsSpent += finalAmount;
     await user.save();
-    
+
     // Update video stats
     video.totalUnlocks += 1;
     video.totalTipsEarned += finalAmount;
     await video.save();
-    
+
     // Update creator's earnings
     await (User as any).findByIdAndUpdate(video.creator, {
       $inc: { totalTipsEarned: finalAmount }
     });
-    
+
     return {
       success: true,
       data: {
@@ -443,12 +443,12 @@ export async function recordVideoView(videoId: string, userId?: string) {
         error: 'Video not found'
       };
     }
-    
+
     // Update video view count
     await (Video as any).findByIdAndUpdate(videoId, {
       $inc: { totalViews: 1 }
     });
-    
+
     // If user is provided, gate by credits and update stats
     if (userId) {
       const user = await (User as any).findById(userId);
@@ -465,7 +465,7 @@ export async function recordVideoView(videoId: string, userId?: string) {
       let transaction: any = null;
 
       if (!isFree) {
-        // Require available credits
+        // Require available credits (stop when credits reach 0)
         if (!user.viewCredits || user.viewCredits <= 0) {
           return {
             success: false,
@@ -534,7 +534,7 @@ export async function recordVideoView(videoId: string, userId?: string) {
         }
       };
     }
-    
+
     // No user provided; just record view
     return {
       success: true,

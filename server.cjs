@@ -59,6 +59,31 @@ const userSchema = new mongoose.Schema({
 
 const User = mongoose.model('User', userSchema);
 
+// Creator Schema
+const creatorSchema = new mongoose.Schema({
+  wallet_address: { type: String, required: true, unique: true, lowercase: true },
+  username: { type: String, required: true, unique: true },
+  bio: { type: String, default: '' },
+  profile_image_url: { type: String, default: '' },
+  total_earned_usdc: { type: Number, default: 0 },
+  joined_at: { type: Date, default: Date.now },
+  isVerified: { type: Boolean, default: false },
+  socialLinks: {
+    twitter: { type: String, default: '' },
+    instagram: { type: String, default: '' },
+    youtube: { type: String, default: '' },
+    website: { type: String, default: '' }
+  },
+  uploadedVideos: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Video' }],
+  totalViews: { type: Number, default: 0 },
+  followerCount: { type: Number, default: 0 },
+  isActive: { type: Boolean, default: true }
+}, {
+  timestamps: true
+});
+
+const Creator = mongoose.model('Creator', creatorSchema);
+
 // API Routes
 
 // Get user by wallet address
@@ -216,6 +241,306 @@ app.post('/api/users/add-credits', async (req, res) => {
     return res.status(500).json({ 
       success: false, 
       error: 'Failed to add view credits' 
+    });
+  }
+});
+
+// Creator API Routes
+
+// Get creator by wallet address
+app.get('/api/creators/:wallet', async (req, res) => {
+  try {
+    const { wallet } = req.params;
+
+    if (!wallet) {
+      return res.status(400).json({ error: 'Wallet address is required' });
+    }
+
+    const creator = await Creator.findOne({ 
+      wallet_address: wallet.toLowerCase() 
+    }).select('-__v');
+
+    if (!creator) {
+      return res.status(404).json({ error: 'Creator not found' });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: creator
+    });
+
+  } catch (error) {
+    console.error('Error fetching creator by wallet:', error);
+    res.status(500).json({ 
+      error: 'Internal server error',
+      message: process.env.NODE_ENV === 'development' ? error.message : 'Failed to fetch creator data'
+    });
+  }
+});
+
+// Create new creator
+app.post('/api/creators', async (req, res) => {
+  try {
+    const { wallet_address, username, bio, profile_image_url, socialLinks } = req.body;
+
+    if (!wallet_address || !username) {
+      return res.status(400).json({ 
+        error: 'Missing required fields: wallet_address and username are required' 
+      });
+    }
+
+    // Check if creator already exists
+    const existingCreator = await Creator.findOne({
+      $or: [
+        { wallet_address: wallet_address.toLowerCase() },
+        { username: username }
+      ]
+    });
+
+    if (existingCreator) {
+      return res.status(409).json({ 
+        error: 'Creator already exists with this wallet address or username' 
+      });
+    }
+
+    // Create new creator
+    const creator = new Creator({
+      wallet_address: wallet_address.toLowerCase(),
+      username,
+      bio,
+      profile_image_url,
+      socialLinks,
+      joined_at: new Date(),
+      total_earned_usdc: 0
+    });
+
+    await creator.save();
+
+    console.log(`✅ New creator created: ${username} (${wallet_address})`);
+
+    res.status(201).json({
+      success: true,
+      message: 'Creator created successfully',
+      data: creator
+    });
+
+  } catch (error) {
+    console.error('Error creating creator:', error);
+    
+    if (error.code === 11000) {
+      return res.status(409).json({ error: 'Creator with this wallet address or username already exists' });
+    }
+    
+    res.status(500).json({ 
+      error: 'Internal server error',
+      message: process.env.NODE_ENV === 'development' ? error.message : 'Failed to create creator'
+    });
+  }
+});
+
+// Video Schema
+const VideoSchema = new mongoose.Schema({
+  title: {
+    type: String,
+    required: true,
+    trim: true,
+    maxlength: 100
+  },
+  description: {
+    type: String,
+    required: true,
+    trim: true,
+    maxlength: 500
+  },
+  thumbnail: {
+    type: String,
+    required: true
+  },
+  videoUrl: {
+    type: String,
+    required: true
+  },
+  duration: {
+    type: Number,
+    required: true,
+    min: 1,
+    max: 300
+  },
+  category: {
+    type: String,
+    required: true
+  },
+  tags: [{
+    type: String,
+    trim: true
+  }],
+  price: {
+    type: Number,
+    default: 0
+  },
+  priceDisplay: {
+    type: String,
+    default: 'Free'
+  },
+  difficulty: {
+    type: String,
+    enum: ['Beginner', 'Intermediate', 'Advanced'],
+    default: 'Beginner'
+  },
+  creator: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Creator',
+    required: true
+  },
+  totalViews: {
+    type: Number,
+    default: 0
+  },
+  totalUnlocks: {
+    type: Number,
+    default: 0
+  },
+  totalTipsEarned: {
+    type: Number,
+    default: 0
+  },
+  isActive: {
+    type: Boolean,
+    default: true
+  },
+  featured: {
+    type: Boolean,
+    default: false
+  },
+  isFree: {
+    type: Boolean,
+    default: true
+  }
+}, {
+  timestamps: true
+});
+
+const Video = mongoose.model('Video', VideoSchema);
+
+// Video API endpoints
+
+// Create a new video
+app.post('/api/videos', async (req, res) => {
+  try {
+    const {
+      title,
+      description,
+      thumbnail,
+      videoUrl,
+      duration,
+      category,
+      tags,
+      price,
+      priceDisplay,
+      difficulty,
+      creatorWallet,
+      isFree
+    } = req.body;
+
+    // Validate required fields
+    if (!title || !description || !thumbnail || !videoUrl || !duration || !category || !creatorWallet) {
+      return res.status(400).json({ 
+        error: 'Missing required fields: title, description, thumbnail, videoUrl, duration, category, creatorWallet' 
+      });
+    }
+
+    // Find the creator by wallet address
+    const creator = await Creator.findOne({ wallet_address: creatorWallet.toLowerCase() });
+    if (!creator) {
+      return res.status(404).json({ error: 'Creator not found' });
+    }
+
+    // Create new video
+    const video = new Video({
+      title,
+      description,
+      thumbnail,
+      videoUrl,
+      duration,
+      category,
+      tags: tags || [],
+      price: price || 0,
+      priceDisplay: priceDisplay || 'Free',
+      difficulty: difficulty || 'Beginner',
+      creator: creator._id,
+      isFree: isFree !== undefined ? isFree : true
+    });
+
+    await video.save();
+
+    console.log(`✅ New video created: ${title} by ${creator.username}`);
+
+    res.status(201).json({
+      success: true,
+      message: 'Video created successfully',
+      data: video
+    });
+
+  } catch (error) {
+    console.error('Error creating video:', error);
+    res.status(500).json({ 
+      error: 'Internal server error',
+      message: process.env.NODE_ENV === 'development' ? error.message : 'Failed to create video'
+    });
+  }
+});
+
+// Get videos by creator
+app.get('/api/videos/creator/:wallet', async (req, res) => {
+  try {
+    const { wallet } = req.params;
+
+    if (!wallet) {
+      return res.status(400).json({ error: 'Wallet address is required' });
+    }
+
+    // Find the creator
+    const creator = await Creator.findOne({ wallet_address: wallet.toLowerCase() });
+    if (!creator) {
+      return res.status(404).json({ error: 'Creator not found' });
+    }
+
+    // Get videos by creator
+    const videos = await Video.find({ creator: creator._id, isActive: true })
+      .populate('creator', 'username profile_image_url')
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      data: videos
+    });
+
+  } catch (error) {
+    console.error('Error fetching videos by creator:', error);
+    res.status(500).json({ 
+      error: 'Internal server error',
+      message: process.env.NODE_ENV === 'development' ? error.message : 'Failed to fetch videos'
+    });
+  }
+});
+
+// Get all videos
+app.get('/api/videos', async (req, res) => {
+  try {
+    const videos = await Video.find({ isActive: true })
+      .populate('creator', 'username profile_image_url')
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      data: videos
+    });
+
+  } catch (error) {
+    console.error('Error fetching videos:', error);
+    res.status(500).json({ 
+      error: 'Internal server error',
+      message: process.env.NODE_ENV === 'development' ? error.message : 'Failed to fetch videos'
     });
   }
 });

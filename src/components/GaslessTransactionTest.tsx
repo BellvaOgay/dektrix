@@ -54,7 +54,7 @@ const GaslessTransactionTest: React.FC = () => {
   };
 
   const getExplorerUrl = (hash: string) => {
-    const baseUrl = currentNetwork.isTestnet 
+    const baseUrl = currentNetwork.isTestnet
       ? 'https://sepolia.basescan.org/tx/'
       : 'https://basescan.org/tx/';
     return `${baseUrl}${hash}`;
@@ -63,7 +63,7 @@ const GaslessTransactionTest: React.FC = () => {
   return (
     <div className="max-w-2xl mx-auto p-6 bg-white rounded-lg shadow-lg">
       <h2 className="text-2xl font-bold mb-6 text-gray-800">Gasless Transaction Test</h2>
-      
+
       {/* Network Status */}
       <div className="mb-6 p-4 bg-gray-50 rounded-lg">
         <h3 className="text-lg font-semibold mb-2">Network Status</h3>
@@ -144,11 +144,10 @@ const GaslessTransactionTest: React.FC = () => {
           <button
             onClick={handleGaslessTransaction}
             disabled={loading || !currentNetwork.paymaster}
-            className={`w-full font-bold py-2 px-4 rounded ${
-              loading || !currentNetwork.paymaster
+            className={`w-full font-bold py-2 px-4 rounded ${loading || !currentNetwork.paymaster
                 ? 'bg-gray-400 cursor-not-allowed'
                 : 'bg-purple-500 hover:bg-purple-600 text-white'
-            }`}
+              }`}
           >
             {loading ? 'Sending...' : 'Send Gasless Transaction'}
           </button>

@@ -197,7 +197,7 @@ export const useBaseWallet = (): UseBaseWalletReturn => {
 
     try {
       console.log('🔄 Creating/getting user via API endpoint:', walletAddress);
-      
+
       const response = await fetch('/api/users/create', {
         method: 'POST',
         headers: {
@@ -217,7 +217,7 @@ export const useBaseWallet = (): UseBaseWalletReturn => {
       }
 
       const result = await response.json();
-      
+
       if (!result.success) {
         throw new Error(result.error || 'Failed to create/get user');
       }
@@ -238,7 +238,7 @@ export const useBaseWallet = (): UseBaseWalletReturn => {
           viewCredits: result.data?.viewCredits,
           walletAddress: result.data?.walletAddress
         });
-        
+
         setWalletState(prev => {
           const newState = {
             ...prev,
@@ -251,7 +251,7 @@ export const useBaseWallet = (): UseBaseWalletReturn => {
           console.log('New wallet state after user data:', newState);
           return newState;
         });
-        
+
         // Force a re-render by updating a dummy state
         setTimeout(() => {
           console.log('Forcing state refresh...');
@@ -295,14 +295,14 @@ export const useBaseWallet = (): UseBaseWalletReturn => {
 
     try {
       console.log('🔍 Checking for existing wallet connection...');
-      
+
       // Check if wallet is already connected
       const accounts = await provider.request({ method: 'eth_accounts' });
-      
+
       if (accounts && accounts.length > 0) {
         const address = accounts[0];
         console.log('✅ Found existing wallet connection:', address);
-        
+
         setWalletState(prev => ({
           ...prev,
           isConnected: true,
@@ -394,9 +394,9 @@ export const useBaseWallet = (): UseBaseWalletReturn => {
 
     try {
       console.log('🔄 Refreshing user data via API endpoint:', walletState.address);
-      
+
       const response = await fetch(`/api/users/${walletState.address}`);
-      
+
       if (!response.ok) {
         if (response.status === 404) {
           console.log('👤 User not found, creating new user...');
@@ -407,7 +407,7 @@ export const useBaseWallet = (): UseBaseWalletReturn => {
       }
 
       const result = await response.json();
-      
+
       if (!result.success) {
         throw new Error(result.error || 'Failed to fetch user data');
       }
@@ -433,311 +433,311 @@ export const useBaseWallet = (): UseBaseWalletReturn => {
     }
   }, [walletState.address, createOrGetUser]);
 
-const connect = useCallback(async () => {
-  console.log('🚀 Starting Base Account connection process...');
+  const connect = useCallback(async () => {
+    console.log('🚀 Starting Base Account connection process...');
 
-  if (!provider) {
-    console.error('❌ Wallet provider not initialized');
+    if (!provider) {
+      console.error('❌ Wallet provider not initialized');
+      setWalletState(prev => ({
+        ...prev,
+        error: 'Wallet provider not initialized',
+      }));
+      return;
+    }
+
+    console.log('⏳ Setting connecting state...');
     setWalletState(prev => ({
       ...prev,
-      error: 'Wallet provider not initialized',
-    }));
-    return;
-  }
-
-  console.log('⏳ Setting connecting state...');
-  setWalletState(prev => ({
-    ...prev,
-    isConnecting: true,
-    error: null,
-  }));
-
-  try {
-    // Generate a fresh nonce for authentication
-    const generateNonce = () => {
-      return crypto.randomUUID().replace(/-/g, '');
-    };
-
-    console.log('🔐 Connecting with Base Account using wallet_connect...');
-    const nonce = generateNonce();
-
-    // Connect and authenticate using the new wallet_connect method
-    const { accounts } = await provider.request({
-      method: 'wallet_connect',
-      params: [{
-        version: '1',
-        capabilities: {
-          signInWithEthereum: {
-            nonce,
-            chainId: `0x${CURRENT_CHAIN_ID.toString(16)}` // Current network chain ID
-          }
-        }
-      }]
-    });
-
-    const { address } = accounts[0];
-    const { message, signature } = accounts[0].capabilities.signInWithEthereum;
-
-    console.log('✅ Base Account connected successfully:', address);
-    console.log('📝 Authentication data received:', { address, message: message?.slice(0, 50) + '...', signature: signature?.slice(0, 20) + '...' });
-
-    setWalletState(prev => ({
-      ...prev,
-      isConnected: true,
-      address: address,
-      isConnecting: false,
-    }));
-
-    // Create or get user from database
-    console.log('👤 Creating/fetching user after connection...');
-    await createOrGetUser(address);
-
-    // Check user state after creation attempt
-    setTimeout(() => {
-      checkUserState();
-    }, 1000); // Give time for state updates
-
-  } catch (error: any) {
-    console.error('💥 Error connecting to Base Account:', error);
-    setWalletState(prev => ({
-      ...prev,
-      isConnecting: false,
-      error: error.message || 'Failed to connect Base Account',
-    }));
-  }
-}, [provider, createOrGetUser, checkUserState]);
-
-const disconnect = useCallback(async () => {
-  console.log('🔌 Starting wallet disconnection...');
-  if (!provider) {
-    console.log('⚠️ No provider available for disconnection');
-    return;
-  }
-
-  try {
-    console.log('🔄 Calling provider disconnect...');
-    await provider.disconnect();
-    console.log('✅ Wallet disconnected successfully');
-    setWalletState({
-      isConnected: false,
-      address: null,
-      isConnecting: false,
+      isConnecting: true,
       error: null,
-      user: null,
-      isNewUser: false
-    });
-  } catch (error: any) {
-    console.error('❌ Error disconnecting wallet:', error);
-    setWalletState(prev => ({
-      ...prev,
-      error: error.message || 'Failed to disconnect wallet',
     }));
-  }
-}, [provider]);
 
-const switchToBase = useCallback(async () => {
-  console.log('🔗 Switching to Base mainnet...');
-  if (!provider) {
-    console.error('❌ Wallet provider not initialized');
-    setWalletState(prev => ({
-      ...prev,
-      error: 'Wallet provider not initialized',
-    }));
-    return;
-  }
+    try {
+      // Generate a fresh nonce for authentication
+      const generateNonce = () => {
+        return crypto.randomUUID().replace(/-/g, '');
+      };
 
-  try {
-    // Update network state to mainnet
-    setCurrentNetwork({
-      chainId: BASE_MAINNET_CHAIN_ID,
-      rpc: BASE_MAINNET_RPC_URL,
-      paymaster: PAYMASTER_MAINNET,
-      isTestnet: false,
-      name: 'Base Mainnet'
-    });
+      console.log('🔐 Connecting with Base Account using wallet_connect...');
+      const nonce = generateNonce();
 
-    console.log('🔄 Requesting chain switch to Base mainnet...');
-    await provider.request({
-      method: 'wallet_switchEthereumChain',
-      params: [{ chainId: `0x${BASE_MAINNET_CHAIN_ID.toString(16)}` }],
-    });
-    console.log('✅ Successfully switched to Base mainnet');
-  } catch (switchError: any) {
-    console.log('⚠️ Chain switch failed:', switchError.code);
-    // If the chain hasn't been added to the wallet, add it
-    if (switchError.code === 4902) {
-      try {
-        console.log('➕ Adding Base network...');
-        await provider.request({
-          method: 'wallet_addEthereumChain',
-          params: [{
-            chainId: `0x${BASE_MAINNET_CHAIN_ID.toString(16)}`,
-          chainName: 'Base Mainnet',
-            nativeCurrency: {
-              name: 'Ethereum',
-              symbol: 'ETH',
-              decimals: 18,
-            },
-            rpcUrls: [BASE_MAINNET_RPC_URL],
-            blockExplorerUrls: ['https://basescan.org'],
-          }],
-        });
-        logger.debug('✅ Base network added successfully');
-      } catch (addError: any) {
-        logger.error('❌ Error adding Base network:', addError);
-        setWalletState(prev => ({
-          ...prev,
-          error: addError.message || 'Failed to add Base network',
-        }));
-      }
-    } else {
-      logger.error('❌ Error switching to Base network:', switchError);
+      // Connect and authenticate using the new wallet_connect method
+      const { accounts } = await provider.request({
+        method: 'wallet_connect',
+        params: [{
+          version: '1',
+          capabilities: {
+            signInWithEthereum: {
+              nonce,
+              chainId: `0x${CURRENT_CHAIN_ID.toString(16)}` // Current network chain ID
+            }
+          }
+        }]
+      });
+
+      const { address } = accounts[0];
+      const { message, signature } = accounts[0].capabilities.signInWithEthereum;
+
+      console.log('✅ Base Account connected successfully:', address);
+      console.log('📝 Authentication data received:', { address, message: message?.slice(0, 50) + '...', signature: signature?.slice(0, 20) + '...' });
+
       setWalletState(prev => ({
         ...prev,
-        error: switchError.message || 'Failed to switch to Base network',
+        isConnected: true,
+        address: address,
+        isConnecting: false,
       }));
-    }
-  }
-}, [provider]);
 
-// Switch to testnet
-const switchToTestnet = useCallback(async () => {
-  console.log('🔗 Switching to Base Sepolia testnet...');
-  if (!provider) {
-    console.error('❌ Wallet provider not initialized');
-    setWalletState(prev => ({
-      ...prev,
-      error: 'Wallet provider not initialized',
-    }));
-    return;
-  }
+      // Create or get user from database
+      console.log('👤 Creating/fetching user after connection...');
+      await createOrGetUser(address);
 
-  try {
-    // Update network state first
-    setCurrentNetwork({
-      chainId: BASE_SEPOLIA_CHAIN_ID,
-      rpc: BASE_SEPOLIA_RPC_URL,
-      paymaster: PAYMASTER_TESTNET,
-      isTestnet: true,
-      name: 'Base Sepolia Testnet'
-    });
+      // Check user state after creation attempt
+      setTimeout(() => {
+        checkUserState();
+      }, 1000); // Give time for state updates
 
-    console.log('🔄 Requesting chain switch to Base Sepolia...');
-    await provider.request({
-      method: 'wallet_switchEthereumChain',
-      params: [{ chainId: `0x${BASE_SEPOLIA_CHAIN_ID.toString(16)}` }],
-    });
-    console.log('✅ Successfully switched to Base Sepolia testnet');
-  } catch (switchError: any) {
-    console.log('⚠️ Chain switch failed:', switchError.code);
-    if (switchError.code === 4902) {
-      try {
-        console.log('➕ Adding Base Sepolia network...');
-        await provider.request({
-          method: 'wallet_addEthereumChain',
-          params: [{
-            chainId: `0x${BASE_SEPOLIA_CHAIN_ID.toString(16)}`,
-            chainName: 'Base Sepolia',
-            nativeCurrency: {
-              name: 'Ethereum',
-              symbol: 'ETH',
-              decimals: 18,
-            },
-            rpcUrls: [BASE_SEPOLIA_RPC_URL],
-            blockExplorerUrls: ['https://sepolia.basescan.org'],
-          }],
-        });
-        logger.debug('✅ Base Sepolia network added successfully');
-      } catch (addError: any) {
-        logger.error('❌ Error adding Base Sepolia network:', addError);
-        setWalletState(prev => ({
-          ...prev,
-          error: addError.message || 'Failed to add Base Sepolia network',
-        }));
-      }
-    } else {
-      logger.error('❌ Error switching to Base Sepolia network:', switchError);
+    } catch (error: any) {
+      console.error('💥 Error connecting to Base Account:', error);
       setWalletState(prev => ({
         ...prev,
-        error: switchError.message || 'Failed to switch to Base Sepolia network',
+        isConnecting: false,
+        error: error.message || 'Failed to connect Base Account',
       }));
     }
-  }
-}, [provider]);
+  }, [provider, createOrGetUser, checkUserState]);
 
-// Send gasless transaction using paymaster
-const sendGaslessTransaction = useCallback(async (to: string, data: string, value: string = '0x0'): Promise<string> => {
-  console.log('💸 Sending gasless transaction...');
-  if (!provider) {
-    throw new Error('Wallet provider not initialized');
-  }
-
-  if (!currentNetwork.paymaster) {
-    throw new Error(`No paymaster configured for ${currentNetwork.isTestnet ? 'testnet' : 'mainnet'}`);
-  }
-
-  try {
-    const accounts = await provider.request({ method: 'eth_accounts' });
-    if (!accounts || accounts.length === 0) {
-      throw new Error('No wallet accounts available');
+  const disconnect = useCallback(async () => {
+    console.log('🔌 Starting wallet disconnection...');
+    if (!provider) {
+      console.log('⚠️ No provider available for disconnection');
+      return;
     }
 
-    const from = accounts[0];
-    console.log('📤 Preparing gasless transaction:', { from, to, data, value, paymaster: currentNetwork.paymaster });
+    try {
+      console.log('🔄 Calling provider disconnect...');
+      await provider.disconnect();
+      console.log('✅ Wallet disconnected successfully');
+      setWalletState({
+        isConnected: false,
+        address: null,
+        isConnecting: false,
+        error: null,
+        user: null,
+        isNewUser: false
+      });
+    } catch (error: any) {
+      console.error('❌ Error disconnecting wallet:', error);
+      setWalletState(prev => ({
+        ...prev,
+        error: error.message || 'Failed to disconnect wallet',
+      }));
+    }
+  }, [provider]);
 
-    // Get nonce
-    const nonce = await provider.request({
-      method: 'eth_getTransactionCount',
-      params: [from, 'pending']
-    });
+  const switchToBase = useCallback(async () => {
+    console.log('🔗 Switching to Base mainnet...');
+    if (!provider) {
+      console.error('❌ Wallet provider not initialized');
+      setWalletState(prev => ({
+        ...prev,
+        error: 'Wallet provider not initialized',
+      }));
+      return;
+    }
 
-    // Estimate gas
-    const gasEstimate = await provider.request({
-      method: 'eth_estimateGas',
-      params: [{ from, to, data, value }]
-    });
+    try {
+      // Update network state to mainnet
+      setCurrentNetwork({
+        chainId: BASE_MAINNET_CHAIN_ID,
+        rpc: BASE_MAINNET_RPC_URL,
+        paymaster: PAYMASTER_MAINNET,
+        isTestnet: false,
+        name: 'Base Mainnet'
+      });
 
-    // Prepare transaction with paymaster
-    const transaction = {
-      from,
-      to,
-      data,
-      value,
-      gas: gasEstimate,
-      gasPrice: '0x0', // Set to 0 for gasless transaction
-      nonce,
-      // Add paymaster data for EIP-4337 or custom paymaster implementation
-      paymasterAndData: currentNetwork.paymaster
-    };
+      console.log('🔄 Requesting chain switch to Base mainnet...');
+      await provider.request({
+        method: 'wallet_switchEthereumChain',
+        params: [{ chainId: `0x${BASE_MAINNET_CHAIN_ID.toString(16)}` }],
+      });
+      console.log('✅ Successfully switched to Base mainnet');
+    } catch (switchError: any) {
+      console.log('⚠️ Chain switch failed:', switchError.code);
+      // If the chain hasn't been added to the wallet, add it
+      if (switchError.code === 4902) {
+        try {
+          console.log('➕ Adding Base network...');
+          await provider.request({
+            method: 'wallet_addEthereumChain',
+            params: [{
+              chainId: `0x${BASE_MAINNET_CHAIN_ID.toString(16)}`,
+              chainName: 'Base Mainnet',
+              nativeCurrency: {
+                name: 'Ethereum',
+                symbol: 'ETH',
+                decimals: 18,
+              },
+              rpcUrls: [BASE_MAINNET_RPC_URL],
+              blockExplorerUrls: ['https://basescan.org'],
+            }],
+          });
+          logger.debug('✅ Base network added successfully');
+        } catch (addError: any) {
+          logger.error('❌ Error adding Base network:', addError);
+          setWalletState(prev => ({
+            ...prev,
+            error: addError.message || 'Failed to add Base network',
+          }));
+        }
+      } else {
+        logger.error('❌ Error switching to Base network:', switchError);
+        setWalletState(prev => ({
+          ...prev,
+          error: switchError.message || 'Failed to switch to Base network',
+        }));
+      }
+    }
+  }, [provider]);
 
-    console.log('🚀 Sending transaction with paymaster...');
-    const txHash = await provider.request({
-      method: 'eth_sendTransaction',
-      params: [transaction]
-    });
+  // Switch to testnet
+  const switchToTestnet = useCallback(async () => {
+    console.log('🔗 Switching to Base Sepolia testnet...');
+    if (!provider) {
+      console.error('❌ Wallet provider not initialized');
+      setWalletState(prev => ({
+        ...prev,
+        error: 'Wallet provider not initialized',
+      }));
+      return;
+    }
 
-    console.log('✅ Gasless transaction sent:', txHash);
-    return txHash;
-  } catch (error: any) {
-    console.error('❌ Error sending gasless transaction:', error);
-    throw new Error(error.message || 'Failed to send gasless transaction');
-  }
-}, [provider, currentNetwork]);
+    try {
+      // Update network state first
+      setCurrentNetwork({
+        chainId: BASE_SEPOLIA_CHAIN_ID,
+        rpc: BASE_SEPOLIA_RPC_URL,
+        paymaster: PAYMASTER_TESTNET,
+        isTestnet: true,
+        name: 'Base Sepolia Testnet'
+      });
 
-// Get current network information
-const getCurrentNetwork = useCallback(() => {
-  return currentNetwork;
-}, [currentNetwork]);
+      console.log('🔄 Requesting chain switch to Base Sepolia...');
+      await provider.request({
+        method: 'wallet_switchEthereumChain',
+        params: [{ chainId: `0x${BASE_SEPOLIA_CHAIN_ID.toString(16)}` }],
+      });
+      console.log('✅ Successfully switched to Base Sepolia testnet');
+    } catch (switchError: any) {
+      console.log('⚠️ Chain switch failed:', switchError.code);
+      if (switchError.code === 4902) {
+        try {
+          console.log('➕ Adding Base Sepolia network...');
+          await provider.request({
+            method: 'wallet_addEthereumChain',
+            params: [{
+              chainId: `0x${BASE_SEPOLIA_CHAIN_ID.toString(16)}`,
+              chainName: 'Base Sepolia',
+              nativeCurrency: {
+                name: 'Ethereum',
+                symbol: 'ETH',
+                decimals: 18,
+              },
+              rpcUrls: [BASE_SEPOLIA_RPC_URL],
+              blockExplorerUrls: ['https://sepolia.basescan.org'],
+            }],
+          });
+          logger.debug('✅ Base Sepolia network added successfully');
+        } catch (addError: any) {
+          logger.error('❌ Error adding Base Sepolia network:', addError);
+          setWalletState(prev => ({
+            ...prev,
+            error: addError.message || 'Failed to add Base Sepolia network',
+          }));
+        }
+      } else {
+        logger.error('❌ Error switching to Base Sepolia network:', switchError);
+        setWalletState(prev => ({
+          ...prev,
+          error: switchError.message || 'Failed to switch to Base Sepolia network',
+        }));
+      }
+    }
+  }, [provider]);
 
-return {
-  ...walletState,
-  connect,
-  disconnect,
-  switchToBase,
-  switchToTestnet,
-  refreshUser,
-  checkUserState, // Expose for debugging
-  sendGaslessTransaction,
-  getCurrentNetwork,
-};
+  // Send gasless transaction using paymaster
+  const sendGaslessTransaction = useCallback(async (to: string, data: string, value: string = '0x0'): Promise<string> => {
+    console.log('💸 Sending gasless transaction...');
+    if (!provider) {
+      throw new Error('Wallet provider not initialized');
+    }
+
+    if (!currentNetwork.paymaster) {
+      throw new Error(`No paymaster configured for ${currentNetwork.isTestnet ? 'testnet' : 'mainnet'}`);
+    }
+
+    try {
+      const accounts = await provider.request({ method: 'eth_accounts' });
+      if (!accounts || accounts.length === 0) {
+        throw new Error('No wallet accounts available');
+      }
+
+      const from = accounts[0];
+      console.log('📤 Preparing gasless transaction:', { from, to, data, value, paymaster: currentNetwork.paymaster });
+
+      // Get nonce
+      const nonce = await provider.request({
+        method: 'eth_getTransactionCount',
+        params: [from, 'pending']
+      });
+
+      // Estimate gas
+      const gasEstimate = await provider.request({
+        method: 'eth_estimateGas',
+        params: [{ from, to, data, value }]
+      });
+
+      // Prepare transaction with paymaster
+      const transaction = {
+        from,
+        to,
+        data,
+        value,
+        gas: gasEstimate,
+        gasPrice: '0x0', // Set to 0 for gasless transaction
+        nonce,
+        // Add paymaster data for EIP-4337 or custom paymaster implementation
+        paymasterAndData: currentNetwork.paymaster
+      };
+
+      console.log('🚀 Sending transaction with paymaster...');
+      const txHash = await provider.request({
+        method: 'eth_sendTransaction',
+        params: [transaction]
+      });
+
+      console.log('✅ Gasless transaction sent:', txHash);
+      return txHash;
+    } catch (error: any) {
+      console.error('❌ Error sending gasless transaction:', error);
+      throw new Error(error.message || 'Failed to send gasless transaction');
+    }
+  }, [provider, currentNetwork]);
+
+  // Get current network information
+  const getCurrentNetwork = useCallback(() => {
+    return currentNetwork;
+  }, [currentNetwork]);
+
+  return {
+    ...walletState,
+    connect,
+    disconnect,
+    switchToBase,
+    switchToTestnet,
+    refreshUser,
+    checkUserState, // Expose for debugging
+    sendGaslessTransaction,
+    getCurrentNetwork,
+  };
 };

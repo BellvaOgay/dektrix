@@ -29,8 +29,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Find user by wallet address (case insensitive)
     console.log('🔍 Finding user by wallet:', wallet.toLowerCase());
-    const user = await User.findOne({ 
-      walletAddress: wallet.toLowerCase() 
+    const user = await User.findOne({
+      walletAddress: wallet.toLowerCase()
     }).select('-__v -createdAt -updatedAt');
 
     if (!user) {
@@ -62,7 +62,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   } catch (error: any) {
     console.error('❌ Error fetching user by wallet:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Internal server error',
       details: error.message
     });

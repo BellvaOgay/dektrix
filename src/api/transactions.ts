@@ -14,24 +14,24 @@ export async function getUserTransactions(userId: string, options?: {
 }) {
   try {
     await connectDB();
-    
+
     const query: any = { user: userId };
-    
+
     if (options?.type) {
       query.type = options.type;
     }
-    
+
     if (options?.status) {
       query.status = options.status;
     }
-    
+
     const transactions = await (Transaction as any).find(query)
       .populate('video', 'title thumbnail duration price')
       .sort({ createdAt: -1 })
       .limit(options?.limit || 20)
       .skip(options?.skip || 0)
       .lean();
-    
+
     return {
       success: true,
       data: transactions
@@ -49,19 +49,19 @@ export async function getUserTransactions(userId: string, options?: {
 export async function getTransactionById(transactionId: string) {
   try {
     await connectDB();
-    
+
     const transaction = await (Transaction as any).findById(transactionId)
       .populate('user', 'username displayName avatar')
       .populate('video', 'title thumbnail duration price creator')
       .lean();
-    
+
     if (!transaction) {
       return {
         success: false,
         error: 'Transaction not found'
       };
     }
-    
+
     return {
       success: true,
       data: transaction
@@ -88,7 +88,7 @@ export async function createTransaction(transactionData: {
 }) {
   try {
     await connectDB();
-    
+
     const { finalAmount, basePayAmount, basePayApplied } = applyBasePay(transactionData.amount);
 
     const transaction = new Transaction({
@@ -101,9 +101,9 @@ export async function createTransaction(transactionData: {
       },
       status: 'pending'
     });
-    
+
     await transaction.save();
-    
+
     return {
       success: true,
       data: transaction
@@ -125,25 +125,25 @@ export async function updateTransactionStatus(
 ) {
   try {
     await connectDB();
-    
+
     const updateData: any = { status };
     if (metadata) {
       updateData.metadata = metadata;
     }
-    
+
     const transaction = await (Transaction as any).findByIdAndUpdate(
       transactionId,
       updateData,
       { new: true }
     ).lean();
-    
+
     if (!transaction) {
       return {
         success: false,
         error: 'Transaction not found'
       };
     }
-    
+
     return {
       success: true,
       data: transaction
@@ -169,21 +169,21 @@ export async function processTip(
 ) {
   try {
     await connectDB();
-    
+
     // Verify users and video exist
     const [fromUser, toUser, video] = await Promise.all([
       (User as any).findById(fromUserId),
       (User as any).findById(toUserId),
       (Video as any).findById(videoId)
     ]);
-    
+
     if (!fromUser || !toUser || !video) {
       return {
         success: false,
         error: 'User or video not found'
       };
     }
-    
+
     const { finalAmount, basePayAmount, basePayApplied } = applyBasePay(amount);
 
     // Create transaction
@@ -201,22 +201,22 @@ export async function processTip(
         basePayApplied,
       }
     });
-    
+
     await transaction.save();
-    
+
     // Update user balances
     fromUser.totalTipsSpent += finalAmount;
     toUser.totalTipsEarned += finalAmount;
-    
+
     await Promise.all([
       fromUser.save(),
       toUser.save()
     ]);
-    
+
     // Update video stats
     video.totalTipsEarned += finalAmount;
     await video.save();
-    
+
     return {
       success: true,
       data: {
@@ -239,9 +239,9 @@ export async function processTip(
 export async function getTransactionStats(userId?: string) {
   try {
     await connectDB();
-    
+
     const query = userId ? { user: userId } : {};
-    
+
     const [totalTransactions, completedTransactions, totalVolume] = await Promise.all([
       Transaction.countDocuments(query),
       Transaction.countDocuments({ ...query, status: 'completed' }),
@@ -250,14 +250,14 @@ export async function getTransactionStats(userId?: string) {
         { $group: { _id: null, total: { $sum: '$amount' } } }
       ])
     ]);
-    
+
     const stats = {
       totalTransactions,
       completedTransactions,
       failedTransactions: totalTransactions - completedTransactions,
       totalVolume: totalVolume[0]?.total || 0
     };
-    
+
     return {
       success: true,
       data: stats

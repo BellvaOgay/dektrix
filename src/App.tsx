@@ -4,6 +4,7 @@ import { BaseWalletProvider } from "@/providers/BaseWalletProvider";
 import Navbar from "./components/Navbar";
 import Index from "./pages/Index";
 import Videos from "./pages/Videos";
+import CreatorProfile from "./pages/CreatorProfile";
 
 import "./App.css";
 
@@ -17,6 +18,7 @@ function App() {
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/videos" element={<Videos />} />
+              <Route path="/creator" element={<CreatorProfile />} />
 
             </Routes>
           </main>

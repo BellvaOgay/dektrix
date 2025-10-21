@@ -513,7 +513,7 @@ export async function getViewCredits(walletAddress: string) {
 export async function addViewCredits(walletAddress: string, creditsToAdd: number) {
   try {
     console.log('🔄 Adding view credits via API:', { walletAddress, creditsToAdd });
-    
+
     const response = await fetch('/api/users/add-credits', {
       method: 'POST',
       headers: {
@@ -528,21 +528,21 @@ export async function addViewCredits(walletAddress: string, creditsToAdd: number
     if (!response.ok) {
       const errorData = await response.json();
       console.error('❌ API response not ok:', response.status, errorData);
-      return { 
-        success: false, 
-        error: errorData.error || `HTTP error! status: ${response.status}` 
+      return {
+        success: false,
+        error: errorData.error || `HTTP error! status: ${response.status}`
       };
     }
 
     const result = await response.json();
     console.log('✅ Credits added successfully:', result);
-    
+
     return result;
   } catch (error: any) {
     console.error('❌ Error adding view credits:', error);
-    return { 
-      success: false, 
-      error: `Network error: ${error.message || 'Failed to add view credits'}` 
+    return {
+      success: false,
+      error: `Network error: ${error.message || 'Failed to add view credits'}`
     };
   }
 }
