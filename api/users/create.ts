@@ -1,5 +1,5 @@
-import { connectDB } from '../_lib/database';
-import User from '../../src/models/User';
+import { connectDB } from '../_lib/database.js';
+import User from '../../src/models/User.js';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {

@@ -1,14 +1,6 @@
 {
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "functions": {
-    "api/**/*.ts": {
-      "runtime": "nodejs18.x"
-    },
-    "api/private-videos/[filename].ts": {
-      "includeFiles": "private_videos/**"
-    }
-  },
   "rewrites": [
     {
       "source": "/api/(.*)",

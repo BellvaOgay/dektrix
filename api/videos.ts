@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'http';
-import { connectDB } from './_lib/database';
-import Video from '../src/models/Video';
-import User from '../src/models/User';
+import { connectDB } from './_lib/database.js';
+import Video from '../src/models/Video.js';
+import User from '../src/models/User.js';
 
 function send(res: ServerResponse, status: number, data: any) {
   res.statusCode = status;
