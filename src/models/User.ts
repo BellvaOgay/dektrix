@@ -13,6 +13,7 @@ export interface IUser extends Document {
   videosWatched: mongoose.Types.ObjectId[];
   videosUnlocked: mongoose.Types.ObjectId[];
   favoriteCategories: string[];
+  viewCredits: number;
   // User container fields for organizing user data
   userContainer: {
     purchasedVideos: mongoose.Types.ObjectId[];
@@ -97,6 +98,11 @@ const UserSchema = new Schema<IUser>({
     type: String,
     enum: ['AI Agents', 'DeFi', 'Blockchain', 'NFTs', 'Web3', 'Crypto', 'Smart Contracts', 'DAOs']
   }],
+  viewCredits: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
   // User container for organizing user data
   userContainer: {
     purchasedVideos: [{

@@ -41,6 +41,7 @@ export async function createOrGetUserByWallet(walletAddress: string, userData?: 
         videosWatched: [],
         videosUnlocked: [],
         favoriteCategories: [],
+        viewCredits: 10, // Give new users 10 free credits to start
         userContainer: {
           purchasedVideos: [],
           uploadedVideos: [],
@@ -265,6 +266,7 @@ export async function createOrUpdateUser(farcasterData: {
         avatar: farcasterData.avatar,
         bio: farcasterData.bio,
         walletAddress: farcasterData.walletAddress,
+        viewCredits: 0,
         lastLoginAt: new Date()
       });
 
@@ -490,6 +492,57 @@ export async function getUserStats(userId: string) {
     return {
       success: false,
       error: 'Failed to fetch user stats'
+    };
+  }
+}
+
+export async function getViewCredits(walletAddress: string) {
+  try {
+    await connectDB();
+    const user = await (User as any).findOne({ walletAddress: walletAddress.toLowerCase() }).lean();
+    if (!user) {
+      return { success: false, error: 'User not found' };
+    }
+    return { success: true, data: { viewCredits: user.viewCredits } };
+  } catch (error) {
+    console.error('Error getting view credits:', error);
+    return { success: false, error: 'Failed to get view credits' };
+  }
+}
+
+export async function addViewCredits(walletAddress: string, creditsToAdd: number) {
+  try {
+    console.log('🔄 Adding view credits via API:', { walletAddress, creditsToAdd });
+    
+    const response = await fetch('/api/users/add-credits', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        walletAddress: walletAddress,
+        creditsToAdd: creditsToAdd
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('❌ API response not ok:', response.status, errorData);
+      return { 
+        success: false, 
+        error: errorData.error || `HTTP error! status: ${response.status}` 
+      };
+    }
+
+    const result = await response.json();
+    console.log('✅ Credits added successfully:', result);
+    
+    return result;
+  } catch (error: any) {
+    console.error('❌ Error adding view credits:', error);
+    return { 
+      success: false, 
+      error: `Network error: ${error.message || 'Failed to add view credits'}` 
     };
   }
 }

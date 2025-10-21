@@ -1,17 +1,41 @@
 import { useEffect, useState, useMemo } from "react";
 import VideoCard from "./VideoCard";
-import { getVideos, recordVideoView } from "@/api/videos";
+import { recordVideoView, unlockVideo, unlockVideoWithBasePay, getVideos } from "@/api/videos";
 import { useBaseWallet } from "@/hooks/useBaseWallet";
 import { useToast } from "@/hooks/use-toast";
 import { useCategory } from "@/contexts/CategoryContext";
+import { encodeFunctionData } from "viem";
+import { addViewCredits } from "@/api/users";
+
+const ERC20_ABI = [
+  {
+    type: 'function',
+    name: 'transfer',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'to', type: 'address' },
+      { name: 'value', type: 'uint256' }
+    ],
+    outputs: [{ name: 'success', type: 'bool' }]
+  }
+] as const;
 
 const VideoFeed = () => {
   const [videos, setVideos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const { isConnected, user: walletUser } = useBaseWallet();
+  const { isConnected, user: walletUser, address, sendGaslessTransaction, getCurrentNetwork, refreshUser } = useBaseWallet();
   const { toast } = useToast();
   const { selectedCategory } = useCategory();
 
+  // Debug wallet state changes
+  useEffect(() => {
+    console.log('🔍 VideoFeed - Wallet state changed:', {
+      isConnected,
+      address,
+      hasUser: !!walletUser,
+      userCredits: walletUser?.viewCredits
+    });
+  }, [isConnected, address, walletUser]);
   const getVideoSrc = (video: any) => {
     const url = video?.videoUrl || '';
     if (!url) return '';
@@ -55,6 +79,154 @@ const VideoFeed = () => {
     return videos.filter(video => video.category === selectedCategory);
   }, [videos, selectedCategory]);
 
+  const purchaseCredits = async () => {
+    try {
+      if (!isConnected || !address) {
+        toast({ title: 'Wallet not connected', description: 'Connect your wallet to purchase credits.' });
+        return;
+      }
+
+      console.log('🛒 Starting credit purchase process...');
+      
+      const network = getCurrentNetwork();
+      const env = (import.meta as any).env ?? {};
+      const receiver = env.VITE_CREDITS_RECEIVER_ADDRESS as string | undefined;
+      const usdcMainnet = env.VITE_USDC_MAINNET_ADDRESS as string | undefined;
+      const usdcTestnet = env.VITE_USDC_TESTNET_ADDRESS as string | undefined;
+
+      if (!receiver) {
+        toast({ title: 'Receiver not configured', description: 'Set VITE_CREDITS_RECEIVER_ADDRESS in your environment.' });
+        return;
+      }
+
+      const isTestnet = Boolean(network?.isTestnet) || String(network?.chainId) === '84532' || String(network?.name || '').toLowerCase().includes('sepolia');
+      const usdcAddress = isTestnet ? usdcTestnet : usdcMainnet;
+      if (!usdcAddress) {
+        toast({ title: 'USDC address missing', description: 'Set USDC contract address env for current network.' });
+        return;
+      }
+
+      // 1 USDC with 6 decimals
+      const amount = 1_000_000n;
+      const data = encodeFunctionData({
+        abi: ERC20_ABI,
+        functionName: 'transfer',
+        args: [receiver as `0x${string}`, amount]
+      });
+
+      console.log('💸 Sending USDC transaction...', { to: usdcAddress, amount: amount.toString() });
+      const txHash = await sendGaslessTransaction(usdcAddress, data, '0x0');
+      console.log('✅ Transaction successful:', txHash);
+
+      // After successful onchain payment, grant 10 credits
+      console.log('🎯 Adding credits to user account...');
+      const res = await addViewCredits(address, 10);
+      
+      if (res?.success) {
+        console.log('✅ Credits added successfully:', res.data);
+        toast({ 
+          title: 'Credits purchased', 
+          description: `You now have ${res.data?.viewCredits || 'more'} view credits.` 
+        });
+        await refreshUser();
+      } else {
+        console.error('❌ Credit update failed:', res);
+        toast({ 
+          title: 'Credits update failed', 
+          description: res?.error || 'Transaction succeeded but credit update failed. Please contact support.' 
+        });
+        
+        // Log transaction details for debugging
+        console.error('Transaction succeeded but credit update failed:', {
+          txHash,
+          walletAddress: address,
+          creditsToAdd: 10,
+          apiResponse: res
+        });
+      }
+    } catch (e: any) {
+      console.error('❌ Error purchasing credits:', e);
+      
+      // Check if it's a transaction error or credit update error
+      if (e.message?.includes('transaction')) {
+        toast({ 
+          title: 'Transaction failed', 
+          description: 'Your wallet was not debited. Please try again.' 
+        });
+      } else {
+        toast({ 
+          title: 'Purchase failed', 
+          description: e?.message || 'Transaction could not be sent.' 
+        });
+      }
+    }
+  };
+
+  // Handle video unlock with payment method selection
+  const handleVideoUnlock = async (videoId: string, paymentMethod: 'crypto' | 'basepay') => {
+    if (!isConnected || !walletUser?._id) {
+      toast({
+        title: "Wallet Not Connected",
+        description: "Please connect your wallet to unlock videos",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // Proper transaction data structure matching the API expectations
+      const transactionData = {
+        amount: 100000, // 0.1 USDC in wei (6 decimals) - as number
+        amountDisplay: "0.1 USDC", // Human readable amount
+        paymentMethod: paymentMethod as 'crypto' | 'basepay', // Explicit type
+        transactionHash: `0x${Math.random().toString(16).substr(2, 64)}`, // Mock hash
+        metadata: {
+          from: address || "",
+          to: process.env.NEXT_PUBLIC_RECEIVER_ADDRESS || "",
+          gasUsed: "21000",
+          gasPrice: "1000000000"
+        }
+      };
+
+      let result;
+      if (paymentMethod === 'basepay') {
+        result = await unlockVideoWithBasePay(walletUser._id, videoId, transactionData);
+      } else {
+        result = await unlockVideo(walletUser._id, videoId, transactionData);
+      }
+
+      if (result?.success) {
+        toast({
+          title: "Video Unlocked!",
+          description: `Successfully unlocked with ${paymentMethod === 'basepay' ? 'BasePay' : 'regular payment'}`,
+        });
+        // Refresh videos to show unlocked status
+        refetchVideos();
+      } else {
+        throw new Error(result?.error || 'Failed to unlock video');
+      }
+    } catch (error) {
+      console.error('Error unlocking video:', error);
+      toast({
+        title: "Unlock Failed",
+        description: error instanceof Error ? error.message : "Failed to unlock video",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Function to refetch videos after unlock
+  const refetchVideos = async () => {
+    try {
+      const result = await getVideos({ limit: 20 });
+      if (result.success) {
+        setVideos(result.data);
+      }
+    } catch (error) {
+      console.error('Error refetching videos:', error);
+    }
+  };
+
   if (loading) {
     return (
       <section className="py-12">
@@ -81,14 +253,58 @@ const VideoFeed = () => {
           <h2 className="text-2xl font-bold">
             Latest <span className="text-gradient">Drops</span>
           </h2>
-          <div className="text-sm text-muted-foreground" aria-live="polite">
-            {filteredVideos.length} videos available
+          <div className="flex items-center gap-4">
+            {isConnected && (
+              <div className="text-sm">
+                <span className="mr-2">Views left:</span>
+                <span className="font-semibold">{walletUser?.viewCredits ?? 0}</span>
+              </div>
+            )}
+            <button
+              className={`px-3 py-2 rounded text-white text-sm transition-colors ${
+                !isConnected 
+                  ? 'bg-gray-400 cursor-not-allowed opacity-50' 
+                  : 'bg-blue-600 hover:bg-blue-700 cursor-pointer'
+              }`}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('=== BUY VIEWS BUTTON DEBUG ===');
+                console.log('Button clicked!');
+                console.log('isConnected:', isConnected);
+                console.log('address:', address);
+                console.log('walletUser:', walletUser);
+                console.log('Button disabled:', !isConnected);
+                console.log('================================');
+                
+                if (!isConnected) {
+                  console.log('Wallet not connected, button should be disabled');
+                  toast({
+                    title: "Wallet Not Connected",
+                    description: "Please connect your wallet first",
+                    variant: "destructive",
+                  });
+                  return;
+                }
+                
+                purchaseCredits();
+              }}
+              disabled={!isConnected}
+              title={!isConnected ? "Connect your wallet first" : "Purchase 10 view credits for $1 USDC"}
+              type="button"
+            >
+              Buy 10 Views ($1 USDC)
+            </button>
           </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
           {filteredVideos.map((video) => {
             const id = video._id || video.id;
+            const isVideoLocked = video.locked && !video.isFree;
+            const videoPrice = video.price || 100000; // Default 0.1 USDC in wei
+            const videoPriceDisplay = video.priceDisplay || "0.1 USDC";
+            
             return (
               <VideoCard
                 key={id}
@@ -98,10 +314,19 @@ const VideoFeed = () => {
                 thumbnail={video.thumbnail || "/placeholder.svg"}
                 description={video.description || ''}
                 src={getVideoSrc(video)}
+                price={videoPrice}
+                priceDisplay={videoPriceDisplay}
+                isLocked={isVideoLocked}
+                isFree={video.isFree || false}
+                onUnlock={(paymentMethod) => handleVideoUnlock(id, paymentMethod)}
                 onClick={async () => {
                   try {
                     if (isConnected && walletUser?._id) {
-                      await recordVideoView(id, walletUser._id);
+                      const result = await recordVideoView(id, walletUser._id);
+                      if (!result?.success && result?.error?.toLowerCase().includes('insufficient view credits')) {
+                        toast({ title: 'No views left', description: 'Purchase credits to keep watching.' });
+                        return;
+                      }
                     }
                     // Video play action - removed console.log for production
                   } catch (e) { 

@@ -46,3 +46,23 @@ export function formatUSDC(amount: number): string {
 export function getPerViewChargeDisplay(): string {
   return formatUSDC(getPerViewChargeAmount());
 }
+
+// BasePay direct payment helpers
+export function calculateBasePayPrice(basePrice: number): {
+  totalPrice: number;
+  basePayFee: number;
+  displayPrice: string;
+} {
+  const basePayFee = getBasePayAmount();
+  const totalPrice = basePrice + basePayFee;
+  
+  return {
+    totalPrice,
+    basePayFee,
+    displayPrice: formatUSDC(totalPrice / 1000000) // Convert from wei to USDC
+  };
+}
+
+export function isBasePayEnabled(): boolean {
+  return getBasePayAmount() > 0;
+}

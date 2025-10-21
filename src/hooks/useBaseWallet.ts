@@ -17,12 +17,27 @@ interface UseBaseWalletReturn extends WalletState {
   connect: () => Promise<void>;
   disconnect: () => Promise<void>;
   switchToBase: () => Promise<void>;
+  switchToTestnet: () => Promise<void>;
   refreshUser: () => Promise<void>;
   checkUserState: () => boolean;
+  sendGaslessTransaction: (to: string, data: string, value?: string) => Promise<string>;
+  getCurrentNetwork: () => { chainId: number; rpc: string; paymaster: string; isTestnet: boolean; name: string };
 }
 
-const BASE_CHAIN_ID = 8453; // Base Mainnet
-const BASE_RPC_URL = 'https://mainnet.base.org';
+// Network configurations
+const BASE_MAINNET_CHAIN_ID = 8453; // Base Mainnet
+const BASE_SEPOLIA_CHAIN_ID = 84532; // Base Sepolia Testnet
+const BASE_MAINNET_RPC_URL = 'https://mainnet.base.org';
+const BASE_SEPOLIA_RPC_URL = 'https://sepolia.base.org';
+
+// Paymaster endpoints from environment variables
+const PAYMASTER_MAINNET = import.meta.env.VITE_PAYMASTER_MAINNET || '';
+const PAYMASTER_TESTNET = import.meta.env.VITE_PAYMASTER_TESTNET || '';
+
+// Current network configuration (default to testnet)
+const CURRENT_CHAIN_ID = BASE_SEPOLIA_CHAIN_ID;
+const CURRENT_RPC_URL = BASE_SEPOLIA_RPC_URL;
+const CURRENT_PAYMASTER = PAYMASTER_TESTNET;
 
 // Check IndexedDB availability and handle errors
 const checkIndexedDBSupport = (): boolean => {
@@ -50,10 +65,11 @@ const suppressIndexedDBErrors = () => {
         message.includes('IndexedDB:Get:InternalError') ||
         message.includes('Analytics SDK: Error') ||
         message.includes('Internal error when calculating storage usage') ||
-        message.includes('checkCrossOriginOpenerPolicy')
+        message.includes('checkCrossOriginOpenerPolicy') ||
+        message.includes('Video load error') ||
+        message.includes('net::ERR_ABORTED')
       ) {
-        // Log as warning instead of error
-        console.warn('🔇 Suppressed storage error:', ...args);
+        // Silently suppress these errors to reduce console spam
         return;
       }
       originalError.apply(console, args);
@@ -73,6 +89,13 @@ export const useBaseWallet = (): UseBaseWalletReturn => {
 
   const [provider, setProvider] = useState<any>(null);
   const [sdkInitialized, setSdkInitialized] = useState(false);
+  const [currentNetwork, setCurrentNetwork] = useState({
+    chainId: BASE_SEPOLIA_CHAIN_ID,
+    rpc: BASE_SEPOLIA_RPC_URL,
+    paymaster: PAYMASTER_TESTNET,
+    isTestnet: true,
+    name: 'Base Sepolia Testnet'
+  });
 
   // Helper function to check user state
   const checkUserState = () => {
@@ -130,6 +153,7 @@ export const useBaseWallet = (): UseBaseWalletReturn => {
         options: {
           enableAnalytics: false, // Disable analytics to prevent IndexedDB errors
           storageType: 'memory', // Use memory storage as fallback
+          crossOriginIsolated: false, // Disable cross-origin isolation checks
         }
       });
 
@@ -151,6 +175,159 @@ export const useBaseWallet = (): UseBaseWalletReturn => {
   useEffect(() => {
     initializeSDK();
   }, [initializeSDK]);
+
+  // Function to create or get user from database using API endpoint
+  const createOrGetUser = useCallback(async (walletAddress: string) => {
+    console.log('👤 Starting createOrGetUser for address:', walletAddress);
+    console.log('🔍 Current wallet state before API call:', {
+      isConnected: walletState.isConnected,
+      address: walletState.address,
+      hasUser: !!walletState.user,
+      error: walletState.error
+    });
+
+    if (!walletAddress) {
+      console.error('❌ No wallet address provided to createOrGetUser');
+      setWalletState(prev => ({
+        ...prev,
+        error: 'No wallet address provided',
+      }));
+      return;
+    }
+
+    try {
+      console.log('🔄 Creating/getting user via API endpoint:', walletAddress);
+      
+      const response = await fetch('/api/users/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          walletAddress: walletAddress,
+          userData: {
+            username: `user_${walletAddress.slice(-8)}`,
+            displayName: `User ${walletAddress.slice(-8)}`
+          }
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to create/get user');
+      }
+
+      console.log('📊 Full API Response:', JSON.stringify(result, null, 2));
+
+      if (result && result.success === true && result.data) {
+        console.log('✅ User operation successful:', {
+          username: result.data.username,
+          walletAddress: result.data.walletAddress,
+          viewCredits: result.data.viewCredits,
+          isNewUser: result.isNewUser
+        });
+
+        console.log('Setting wallet state with user data:', {
+          user: result.data,
+          username: result.data?.username,
+          viewCredits: result.data?.viewCredits,
+          walletAddress: result.data?.walletAddress
+        });
+        
+        setWalletState(prev => {
+          const newState = {
+            ...prev,
+            isConnected: true, // Ensure connection state is true
+            address: walletAddress,
+            user: result.data,
+            isNewUser: result.isNewUser || false,
+            error: null, // Clear any previous errors
+          };
+          console.log('New wallet state after user data:', newState);
+          return newState;
+        });
+        
+        // Force a re-render by updating a dummy state
+        setTimeout(() => {
+          console.log('Forcing state refresh...');
+          setWalletState(prev => ({ ...prev }));
+        }, 100);
+
+        // Additional verification
+        if (result.data.walletAddress.toLowerCase() === walletAddress.toLowerCase()) {
+          console.log('✅ Wallet address verification passed');
+        } else {
+          console.warn('⚠️ Wallet address mismatch:', {
+            expected: walletAddress.toLowerCase(),
+            received: result.data.walletAddress.toLowerCase()
+          });
+        }
+
+        if (result.isNewUser) {
+          console.log('🆕 New user created successfully:', result.data);
+        } else {
+          console.log('👋 Existing user logged in:', result.data);
+        }
+      } else {
+        console.error('❌ User creation/retrieval failed:', result);
+        setWalletState(prev => ({
+          ...prev,
+          error: result?.error || 'Failed to create or get user',
+        }));
+      }
+    } catch (error) {
+      console.error('❌ Error in createOrGetUser:', error);
+      setWalletState(prev => ({
+        ...prev,
+        error: `Database error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      }));
+    }
+  }, [walletState.isConnected, walletState.address, walletState.user, walletState.error]);
+
+  // Check for existing wallet connection on page load
+  const checkExistingConnection = useCallback(async () => {
+    if (!provider || !sdkInitialized) return;
+
+    try {
+      console.log('🔍 Checking for existing wallet connection...');
+      
+      // Check if wallet is already connected
+      const accounts = await provider.request({ method: 'eth_accounts' });
+      
+      if (accounts && accounts.length > 0) {
+        const address = accounts[0];
+        console.log('✅ Found existing wallet connection:', address);
+        
+        setWalletState(prev => ({
+          ...prev,
+          isConnected: true,
+          address: address,
+          error: null,
+        }));
+
+        // Fetch user data for the connected wallet
+        console.log('👤 Fetching user data for existing connection...');
+        await createOrGetUser(address);
+      } else {
+        console.log('ℹ️ No existing wallet connection found');
+      }
+    } catch (error: any) {
+      console.log('⚠️ Error checking existing connection:', error.message);
+      // Don't set this as an error since it's just a check
+    }
+  }, [provider, sdkInitialized, createOrGetUser]);
+
+  // Check for existing connection when SDK is ready
+  useEffect(() => {
+    if (provider && sdkInitialized) {
+      checkExistingConnection();
+    }
+  }, [provider, sdkInitialized, checkExistingConnection]);
 
   // Set up event listeners only after SDK is initialized
   useEffect(() => {
@@ -206,316 +383,361 @@ export const useBaseWallet = (): UseBaseWalletReturn => {
         console.error('❌ Error removing event listeners:', error);
       }
     };
-  }, [provider, sdkInitialized]);
+  }, [provider, sdkInitialized, createOrGetUser]);
 
-  // Function to create or get user from database
-  const createOrGetUser = useCallback(async (walletAddress: string) => {
-    console.log('👤 Starting createOrGetUser for address:', walletAddress);
-    console.log('🔍 Current wallet state before API call:', {
-      isConnected: walletState.isConnected,
-      address: walletState.address,
-      hasUser: !!walletState.user,
-      error: walletState.error
-    });
-
-    if (!walletAddress) {
-      console.error('❌ No wallet address provided to createOrGetUser');
-      setWalletState(prev => ({
-        ...prev,
-        error: 'No wallet address provided',
-      }));
+  // Refresh user data from database using API endpoint
+  const refreshUser = useCallback(async () => {
+    if (!walletState.address) {
+      console.log('⚠️ No wallet address available for refresh');
       return;
     }
 
     try {
-      console.log('📡 Importing user API...');
-      const { createOrGetUserByWallet } = await import('@/api/users');
-      console.log('📦 API module imported successfully');
-
-      console.log('🚀 Calling createOrGetUserByWallet API...');
-      const result = await createOrGetUserByWallet(walletAddress);
-
-      console.log('📊 Full API Response:', JSON.stringify(result, null, 2));
-
-      if (result && result.success === true && result.data) {
-        console.log('✅ User operation successful:', {
-          username: result.data.username,
-          walletAddress: result.data.walletAddress,
-          isNewUser: result.isNewUser
-        });
-
-        console.log('🔄 Updating wallet state with user data...');
-        setWalletState(prev => {
-          const newState = {
-            ...prev,
-            user: result.data,
-            isNewUser: result.isNewUser || false,
-            error: null, // Clear any previous errors
-          };
-          console.log('📝 New wallet state after user update:', {
-            isConnected: newState.isConnected,
-            address: newState.address,
-            hasUser: !!newState.user,
-            username: newState.user?.username,
-            error: newState.error
-          });
-          return newState;
-        });
-
-        // Additional verification
-        if (result.data.walletAddress.toLowerCase() === walletAddress.toLowerCase()) {
-          console.log('✅ Wallet address verification passed');
-        } else {
-          console.warn('⚠️ Wallet address mismatch:', {
-            expected: walletAddress.toLowerCase(),
-            received: result.data.walletAddress.toLowerCase()
-          });
+      console.log('🔄 Refreshing user data via API endpoint:', walletState.address);
+      
+      const response = await fetch(`/api/users/${walletState.address}`);
+      
+      if (!response.ok) {
+        if (response.status === 404) {
+          console.log('👤 User not found, creating new user...');
+          await createOrGetUser(walletState.address);
+          return;
         }
-
-        if (result.isNewUser) {
-          console.log('🆕 New user created successfully:', result.data);
-        } else {
-          console.log('👋 Existing user logged in:', result.data);
-        }
-
-        // Verify state was actually updated
-        setTimeout(() => {
-          console.log('🔍 Verifying state update after 100ms...');
-          console.log('Current walletState after user creation:', {
-            isConnected: walletState.isConnected,
-            address: walletState.address,
-            hasUser: !!walletState.user,
-            username: walletState.user?.username,
-            error: walletState.error
-          });
-        }, 100);
-
-      } else {
-        const errorMsg = result?.error || 'Unknown error occurred';
-        console.error('❌ API returned error:', {
-          success: result?.success,
-          error: errorMsg,
-          hasData: !!result?.data
-        });
-
-        if (errorMsg.toLowerCase().includes('not found')) {
-          console.log('🔍 User not found scenario detected - this should not happen in createOrGetUser');
-        }
-
-        setWalletState(prev => ({
-          ...prev,
-          error: `User operation failed: ${errorMsg}`,
-          user: null,
-        }));
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
+
+      const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to fetch user data');
+      }
+
+      console.log('✅ User data refreshed from API:', {
+        username: result.data.username,
+        viewCredits: result.data.viewCredits,
+        walletAddress: result.data.walletAddress
+      });
+
+      setWalletState(prev => ({
+        ...prev,
+        user: result.data,
+        error: null
+      }));
+
     } catch (error: any) {
-      console.group('🚨 createOrGetUser Error');
-      console.error('Error details:', error);
-      console.error('Error message:', error?.message);
-      console.error('Error stack:', error?.stack);
-      console.error('Wallet address:', walletAddress);
-      console.groupEnd();
-
-      // Check for specific error types
-      if (error?.message?.includes('UnknownError') || error?.message?.includes('Internal error')) {
-        console.error('🔍 DETECTED UNKNOWN/INTERNAL ERROR in createOrGetUser:', {
-          error: error,
-          message: error?.message,
-          stack: error?.stack,
-          walletAddress: walletAddress,
-          timestamp: new Date().toISOString()
-        });
-      }
-
+      console.error('❌ Error refreshing user data:', error);
       setWalletState(prev => ({
         ...prev,
-        error: `Failed to create/get user: ${error?.message || 'Unknown error'}`,
-        user: null,
-        isNewUser: false
+        error: `Failed to refresh user data: ${error.message}`
       }));
     }
-  }, [walletState]);
+  }, [walletState.address, createOrGetUser]);
 
-  // Function to refresh user data
-  const refreshUser = useCallback(async () => {
-    console.log('🔄 Refreshing user data...');
-    if (walletState.address) {
-      console.log('📍 Current wallet address:', walletState.address);
-      await createOrGetUser(walletState.address);
+const connect = useCallback(async () => {
+  console.log('🚀 Starting Base Account connection process...');
 
-      // Check state after refresh
-      setTimeout(() => {
-        checkUserState();
-      }, 500);
-    } else {
-      console.log('⚠️ No wallet address available for refresh');
-    }
-  }, [walletState.address, createOrGetUser, checkUserState]);
-
-  const connect = useCallback(async () => {
-    console.log('🚀 Starting Base Account connection process...');
-
-    if (!provider) {
-      console.error('❌ Wallet provider not initialized');
-      setWalletState(prev => ({
-        ...prev,
-        error: 'Wallet provider not initialized',
-      }));
-      return;
-    }
-
-    console.log('⏳ Setting connecting state...');
+  if (!provider) {
+    console.error('❌ Wallet provider not initialized');
     setWalletState(prev => ({
       ...prev,
-      isConnecting: true,
-      error: null,
+      error: 'Wallet provider not initialized',
+    }));
+    return;
+  }
+
+  console.log('⏳ Setting connecting state...');
+  setWalletState(prev => ({
+    ...prev,
+    isConnecting: true,
+    error: null,
+  }));
+
+  try {
+    // Generate a fresh nonce for authentication
+    const generateNonce = () => {
+      return crypto.randomUUID().replace(/-/g, '');
+    };
+
+    console.log('🔐 Connecting with Base Account using wallet_connect...');
+    const nonce = generateNonce();
+
+    // Connect and authenticate using the new wallet_connect method
+    const { accounts } = await provider.request({
+      method: 'wallet_connect',
+      params: [{
+        version: '1',
+        capabilities: {
+          signInWithEthereum: {
+            nonce,
+            chainId: `0x${CURRENT_CHAIN_ID.toString(16)}` // Current network chain ID
+          }
+        }
+      }]
+    });
+
+    const { address } = accounts[0];
+    const { message, signature } = accounts[0].capabilities.signInWithEthereum;
+
+    console.log('✅ Base Account connected successfully:', address);
+    console.log('📝 Authentication data received:', { address, message: message?.slice(0, 50) + '...', signature: signature?.slice(0, 20) + '...' });
+
+    setWalletState(prev => ({
+      ...prev,
+      isConnected: true,
+      address: address,
+      isConnecting: false,
     }));
 
-    try {
-      // Generate a fresh nonce for authentication
-      const generateNonce = () => {
-        return crypto.randomUUID().replace(/-/g, '');
-      };
+    // Create or get user from database
+    console.log('👤 Creating/fetching user after connection...');
+    await createOrGetUser(address);
 
-      console.log('🔐 Connecting with Base Account using wallet_connect...');
-      const nonce = generateNonce();
+    // Check user state after creation attempt
+    setTimeout(() => {
+      checkUserState();
+    }, 1000); // Give time for state updates
 
-      // Connect and authenticate using the new wallet_connect method
-      const { accounts } = await provider.request({
-        method: 'wallet_connect',
-        params: [{
-          version: '1',
-          capabilities: {
-            signInWithEthereum: {
-              nonce,
-              chainId: `0x${BASE_CHAIN_ID.toString(16)}` // Base Mainnet - 8453
-            }
-          }
-        }]
-      });
+  } catch (error: any) {
+    console.error('💥 Error connecting to Base Account:', error);
+    setWalletState(prev => ({
+      ...prev,
+      isConnecting: false,
+      error: error.message || 'Failed to connect Base Account',
+    }));
+  }
+}, [provider, createOrGetUser, checkUserState]);
 
-      const { address } = accounts[0];
-      const { message, signature } = accounts[0].capabilities.signInWithEthereum;
+const disconnect = useCallback(async () => {
+  console.log('🔌 Starting wallet disconnection...');
+  if (!provider) {
+    console.log('⚠️ No provider available for disconnection');
+    return;
+  }
 
-      console.log('✅ Base Account connected successfully:', address);
-      console.log('📝 Authentication data received:', { address, message: message?.slice(0, 50) + '...', signature: signature?.slice(0, 20) + '...' });
+  try {
+    console.log('🔄 Calling provider disconnect...');
+    await provider.disconnect();
+    console.log('✅ Wallet disconnected successfully');
+    setWalletState({
+      isConnected: false,
+      address: null,
+      isConnecting: false,
+      error: null,
+      user: null,
+      isNewUser: false
+    });
+  } catch (error: any) {
+    console.error('❌ Error disconnecting wallet:', error);
+    setWalletState(prev => ({
+      ...prev,
+      error: error.message || 'Failed to disconnect wallet',
+    }));
+  }
+}, [provider]);
 
-      setWalletState(prev => ({
-        ...prev,
-        isConnected: true,
-        address: address,
-        isConnecting: false,
-      }));
+const switchToBase = useCallback(async () => {
+  console.log('🔗 Switching to Base mainnet...');
+  if (!provider) {
+    console.error('❌ Wallet provider not initialized');
+    setWalletState(prev => ({
+      ...prev,
+      error: 'Wallet provider not initialized',
+    }));
+    return;
+  }
 
-      // Create or get user from database
-      console.log('👤 Creating/fetching user after connection...');
-      await createOrGetUser(address);
+  try {
+    // Update network state to mainnet
+    setCurrentNetwork({
+      chainId: BASE_MAINNET_CHAIN_ID,
+      rpc: BASE_MAINNET_RPC_URL,
+      paymaster: PAYMASTER_MAINNET,
+      isTestnet: false,
+      name: 'Base Mainnet'
+    });
 
-      // Check user state after creation attempt
-      setTimeout(() => {
-        checkUserState();
-      }, 1000); // Give time for state updates
-
-    } catch (error: any) {
-      console.error('💥 Error connecting to Base Account:', error);
-      setWalletState(prev => ({
-        ...prev,
-        isConnecting: false,
-        error: error.message || 'Failed to connect Base Account',
-      }));
-    }
-  }, [provider, createOrGetUser]);
-
-  const disconnect = useCallback(async () => {
-    console.log('🔌 Starting wallet disconnection...');
-    if (!provider) {
-      console.log('⚠️ No provider available for disconnection');
-      return;
-    }
-
-    try {
-      console.log('🔄 Calling provider disconnect...');
-      await provider.disconnect();
-      console.log('✅ Wallet disconnected successfully');
-      setWalletState({
-        isConnected: false,
-        address: null,
-        isConnecting: false,
-        error: null,
-        user: null,
-        isNewUser: false
-      });
-    } catch (error: any) {
-      console.error('❌ Error disconnecting wallet:', error);
-      setWalletState(prev => ({
-        ...prev,
-        error: error.message || 'Failed to disconnect wallet',
-      }));
-    }
-  }, [provider]);
-
-  const switchToBase = useCallback(async () => {
-    console.log('🔗 Switching to Base network...');
-    if (!provider) {
-      console.error('❌ Wallet provider not initialized');
-      setWalletState(prev => ({
-        ...prev,
-        error: 'Wallet provider not initialized',
-      }));
-      return;
-    }
-
-    try {
-      console.log('🔄 Requesting chain switch to Base...');
-      await provider.request({
-        method: 'wallet_switchEthereumChain',
-        params: [{ chainId: `0x${BASE_CHAIN_ID.toString(16)}` }],
-      });
-      console.log('✅ Successfully switched to Base network');
-    } catch (switchError: any) {
-      console.log('⚠️ Chain switch failed:', switchError.code);
-      // If the chain hasn't been added to the wallet, add it
-      if (switchError.code === 4902) {
-        try {
-          console.log('➕ Adding Base network...');
-          await provider.request({
-            method: 'wallet_addEthereumChain',
-            params: [{
-              chainId: `0x${BASE_CHAIN_ID.toString(16)}`,
-              chainName: 'Base',
-              nativeCurrency: {
-                name: 'Ethereum',
-                symbol: 'ETH',
-                decimals: 18,
-              },
-              rpcUrls: [BASE_RPC_URL],
-              blockExplorerUrls: ['https://basescan.org'],
-            }],
-          });
-          logger.debug('✅ Base network added successfully');
-        } catch (addError: any) {
-          logger.error('❌ Error adding Base network:', addError);
-          setWalletState(prev => ({
-            ...prev,
-            error: addError.message || 'Failed to add Base network',
-          }));
-        }
-      } else {
-        logger.error('❌ Error switching to Base network:', switchError);
+    console.log('🔄 Requesting chain switch to Base mainnet...');
+    await provider.request({
+      method: 'wallet_switchEthereumChain',
+      params: [{ chainId: `0x${BASE_MAINNET_CHAIN_ID.toString(16)}` }],
+    });
+    console.log('✅ Successfully switched to Base mainnet');
+  } catch (switchError: any) {
+    console.log('⚠️ Chain switch failed:', switchError.code);
+    // If the chain hasn't been added to the wallet, add it
+    if (switchError.code === 4902) {
+      try {
+        console.log('➕ Adding Base network...');
+        await provider.request({
+          method: 'wallet_addEthereumChain',
+          params: [{
+            chainId: `0x${BASE_MAINNET_CHAIN_ID.toString(16)}`,
+          chainName: 'Base Mainnet',
+            nativeCurrency: {
+              name: 'Ethereum',
+              symbol: 'ETH',
+              decimals: 18,
+            },
+            rpcUrls: [BASE_MAINNET_RPC_URL],
+            blockExplorerUrls: ['https://basescan.org'],
+          }],
+        });
+        logger.debug('✅ Base network added successfully');
+      } catch (addError: any) {
+        logger.error('❌ Error adding Base network:', addError);
         setWalletState(prev => ({
           ...prev,
-          error: switchError.message || 'Failed to switch to Base network',
+          error: addError.message || 'Failed to add Base network',
         }));
       }
+    } else {
+      logger.error('❌ Error switching to Base network:', switchError);
+      setWalletState(prev => ({
+        ...prev,
+        error: switchError.message || 'Failed to switch to Base network',
+      }));
     }
-  }, [provider]);
+  }
+}, [provider]);
 
-  return {
-    ...walletState,
-    connect,
-    disconnect,
-    switchToBase,
-    refreshUser,
-    checkUserState, // Expose for debugging
-  };
+// Switch to testnet
+const switchToTestnet = useCallback(async () => {
+  console.log('🔗 Switching to Base Sepolia testnet...');
+  if (!provider) {
+    console.error('❌ Wallet provider not initialized');
+    setWalletState(prev => ({
+      ...prev,
+      error: 'Wallet provider not initialized',
+    }));
+    return;
+  }
+
+  try {
+    // Update network state first
+    setCurrentNetwork({
+      chainId: BASE_SEPOLIA_CHAIN_ID,
+      rpc: BASE_SEPOLIA_RPC_URL,
+      paymaster: PAYMASTER_TESTNET,
+      isTestnet: true,
+      name: 'Base Sepolia Testnet'
+    });
+
+    console.log('🔄 Requesting chain switch to Base Sepolia...');
+    await provider.request({
+      method: 'wallet_switchEthereumChain',
+      params: [{ chainId: `0x${BASE_SEPOLIA_CHAIN_ID.toString(16)}` }],
+    });
+    console.log('✅ Successfully switched to Base Sepolia testnet');
+  } catch (switchError: any) {
+    console.log('⚠️ Chain switch failed:', switchError.code);
+    if (switchError.code === 4902) {
+      try {
+        console.log('➕ Adding Base Sepolia network...');
+        await provider.request({
+          method: 'wallet_addEthereumChain',
+          params: [{
+            chainId: `0x${BASE_SEPOLIA_CHAIN_ID.toString(16)}`,
+            chainName: 'Base Sepolia',
+            nativeCurrency: {
+              name: 'Ethereum',
+              symbol: 'ETH',
+              decimals: 18,
+            },
+            rpcUrls: [BASE_SEPOLIA_RPC_URL],
+            blockExplorerUrls: ['https://sepolia.basescan.org'],
+          }],
+        });
+        logger.debug('✅ Base Sepolia network added successfully');
+      } catch (addError: any) {
+        logger.error('❌ Error adding Base Sepolia network:', addError);
+        setWalletState(prev => ({
+          ...prev,
+          error: addError.message || 'Failed to add Base Sepolia network',
+        }));
+      }
+    } else {
+      logger.error('❌ Error switching to Base Sepolia network:', switchError);
+      setWalletState(prev => ({
+        ...prev,
+        error: switchError.message || 'Failed to switch to Base Sepolia network',
+      }));
+    }
+  }
+}, [provider]);
+
+// Send gasless transaction using paymaster
+const sendGaslessTransaction = useCallback(async (to: string, data: string, value: string = '0x0'): Promise<string> => {
+  console.log('💸 Sending gasless transaction...');
+  if (!provider) {
+    throw new Error('Wallet provider not initialized');
+  }
+
+  if (!currentNetwork.paymaster) {
+    throw new Error(`No paymaster configured for ${currentNetwork.isTestnet ? 'testnet' : 'mainnet'}`);
+  }
+
+  try {
+    const accounts = await provider.request({ method: 'eth_accounts' });
+    if (!accounts || accounts.length === 0) {
+      throw new Error('No wallet accounts available');
+    }
+
+    const from = accounts[0];
+    console.log('📤 Preparing gasless transaction:', { from, to, data, value, paymaster: currentNetwork.paymaster });
+
+    // Get nonce
+    const nonce = await provider.request({
+      method: 'eth_getTransactionCount',
+      params: [from, 'pending']
+    });
+
+    // Estimate gas
+    const gasEstimate = await provider.request({
+      method: 'eth_estimateGas',
+      params: [{ from, to, data, value }]
+    });
+
+    // Prepare transaction with paymaster
+    const transaction = {
+      from,
+      to,
+      data,
+      value,
+      gas: gasEstimate,
+      gasPrice: '0x0', // Set to 0 for gasless transaction
+      nonce,
+      // Add paymaster data for EIP-4337 or custom paymaster implementation
+      paymasterAndData: currentNetwork.paymaster
+    };
+
+    console.log('🚀 Sending transaction with paymaster...');
+    const txHash = await provider.request({
+      method: 'eth_sendTransaction',
+      params: [transaction]
+    });
+
+    console.log('✅ Gasless transaction sent:', txHash);
+    return txHash;
+  } catch (error: any) {
+    console.error('❌ Error sending gasless transaction:', error);
+    throw new Error(error.message || 'Failed to send gasless transaction');
+  }
+}, [provider, currentNetwork]);
+
+// Get current network information
+const getCurrentNetwork = useCallback(() => {
+  return currentNetwork;
+}, [currentNetwork]);
+
+return {
+  ...walletState,
+  connect,
+  disconnect,
+  switchToBase,
+  switchToTestnet,
+  refreshUser,
+  checkUserState, // Expose for debugging
+  sendGaslessTransaction,
+  getCurrentNetwork,
+};
 };

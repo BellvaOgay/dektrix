@@ -11,6 +11,9 @@ interface BaseWalletContextType {
   connect: () => Promise<void>;
   disconnect: () => Promise<void>;
   switchToBase: () => Promise<void>;
+  switchToTestnet: () => Promise<void>;
+  sendGaslessTransaction: (to: string, data: string, value?: string) => Promise<string>;
+  getCurrentNetwork: () => { chainId: number; rpc: string; paymaster: string; name: string };
   refreshUser: () => Promise<void>;
   checkUserState: () => boolean;
 }

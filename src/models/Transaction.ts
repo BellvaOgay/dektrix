@@ -8,7 +8,7 @@ export interface ITransaction extends Document {
   amountDisplay: string; // human readable amount
   transactionHash?: string; // blockchain transaction hash
   status: 'pending' | 'completed' | 'failed';
-  paymentMethod: 'crypto' | 'farcaster' | 'credit';
+  paymentMethod: 'crypto' | 'farcaster' | 'credit' | 'basepay';
   metadata?: {
     blockNumber?: number;
     gasUsed?: number;
@@ -57,7 +57,7 @@ const TransactionSchema = new Schema<ITransaction>({
   },
   paymentMethod: {
     type: String,
-    enum: ['crypto', 'farcaster', 'credit'],
+    enum: ['crypto', 'farcaster', 'credit', 'basepay'],
     required: true
   },
   metadata: {

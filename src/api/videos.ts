@@ -5,7 +5,7 @@ import User from '../models/User';
 import Transaction from '../models/Transaction';
 import type { IVideo } from '../models/Video';
 import type { IUser } from '../models/User';
-import { applyBasePay, getPerViewChargeAmount, formatUSDC } from '../lib/utils';
+import { applyBasePay, getPerViewChargeAmount, formatUSDC, calculateBasePayPrice, isBasePayEnabled } from '../lib/utils';
 
 // Mock storage for browser environment
 let mockVideos: any[] = [
@@ -209,11 +209,124 @@ export async function createVideo(videoData: Partial<IVideo>) {
   }
 }
 
+// Unlock a video for a user with BasePay integration
+export async function unlockVideoWithBasePay(userId: string, videoId: string, transactionData: {
+  amount: number;
+  amountDisplay: string;
+  paymentMethod: 'crypto' | 'farcaster' | 'basepay';
+  transactionHash?: string;
+  metadata?: any;
+}) {
+  try {
+    // Dev-mode browser fallback: simulate unlock without DB
+    if (typeof window !== 'undefined' && import.meta.env.DEV) {
+      return {
+        success: true,
+        data: {
+          transaction: { type: 'unlock', amount: transactionData.amount, amountDisplay: transactionData.amountDisplay },
+          video: { _id: videoId },
+          user: { _id: userId },
+        }
+      };
+    }
+
+    await connectDB();
+    
+    // Check if video exists
+    const video = await (Video as any).findById(videoId);
+    if (!video) {
+      return {
+        success: false,
+        error: 'Video not found'
+      };
+    }
+    
+    // Check if user exists
+    const user = await (User as any).findById(userId);
+    if (!user) {
+      return {
+        success: false,
+        error: 'User not found'
+      };
+    }
+    
+    // Check if already unlocked
+    if (user.videosUnlocked.includes(videoId)) {
+      return {
+        success: false,
+        error: 'Video already unlocked'
+      };
+    }
+    
+    let finalAmount = transactionData.amount;
+    let basePayAmount = 0;
+    let basePayApplied = false;
+
+    // Apply BasePay if using basepay payment method
+    if (transactionData.paymentMethod === 'basepay') {
+      const basePayResult = applyBasePay(transactionData.amount);
+      finalAmount = basePayResult.finalAmount;
+      basePayAmount = basePayResult.basePayAmount;
+      basePayApplied = basePayResult.basePayApplied;
+    }
+
+    // Create transaction record
+    const transaction = new Transaction({
+      user: userId,
+      video: videoId,
+      type: 'unlock',
+      ...transactionData,
+      amount: finalAmount,
+      status: 'completed',
+      metadata: {
+        ...(transactionData.metadata || {}),
+        basePayAmount,
+        basePayApplied,
+        paymentMethod: transactionData.paymentMethod,
+      },
+    });
+    
+    await transaction.save();
+    
+    // Update user's unlocked videos
+    user.videosUnlocked.push(videoId);
+    user.totalTipsSpent += finalAmount;
+    await user.save();
+    
+    // Update video stats
+    video.totalUnlocks += 1;
+    video.totalTipsEarned += finalAmount;
+    await video.save();
+    
+    // Update creator's earnings
+    await (User as any).findByIdAndUpdate(video.creator, {
+      $inc: { totalTipsEarned: finalAmount }
+    });
+    
+    return {
+      success: true,
+      data: {
+        transaction,
+        video,
+        user,
+        basePayApplied,
+        basePayAmount
+      }
+    };
+  } catch (error) {
+    console.error('Error unlocking video with BasePay:', error);
+    return {
+      success: false,
+      error: 'Failed to unlock video'
+    };
+  }
+}
+
 // Unlock a video for a user
 export async function unlockVideo(userId: string, videoId: string, transactionData: {
   amount: number;
   amountDisplay: string;
-  paymentMethod: 'crypto' | 'farcaster' | 'credit';
+  paymentMethod: 'crypto' | 'farcaster' | 'credit' | 'basepay';
   transactionHash?: string;
   metadata?: any;
 }) {
@@ -336,7 +449,7 @@ export async function recordVideoView(videoId: string, userId?: string) {
       $inc: { totalViews: 1 }
     });
     
-    // If user is provided, charge per view and update stats
+    // If user is provided, gate by credits and update stats
     if (userId) {
       const user = await (User as any).findById(userId);
       if (!user) {
@@ -346,39 +459,69 @@ export async function recordVideoView(videoId: string, userId?: string) {
         };
       }
 
-      const perViewAmount = getPerViewChargeAmount();
-      const { finalAmount, basePayAmount, basePayApplied } = applyBasePay(perViewAmount);
+      // Free videos don't consume credits
+      const isFree = !!video.isFree;
+      let perViewAmount = 0;
+      let transaction: any = null;
 
-      const transaction = new Transaction({
-        user: userId,
-        video: videoId,
-        type: 'view',
-        amount: finalAmount,
-        amountDisplay: formatUSDC(finalAmount),
-        paymentMethod: 'credit',
-        status: 'completed',
-        metadata: {
-          basePayAmount,
-          basePayApplied,
-        },
-      });
+      if (!isFree) {
+        // Require available credits
+        if (!user.viewCredits || user.viewCredits <= 0) {
+          return {
+            success: false,
+            error: 'Insufficient view credits'
+          };
+        }
+        // Deduct one credit
+        user.viewCredits -= 1;
+        await user.save();
 
-      await transaction.save();
+        // Determine per-view attribution amount
+        perViewAmount = getPerViewChargeAmount();
+        const { finalAmount, basePayAmount, basePayApplied } = applyBasePay(perViewAmount);
 
-      // Update user's watched videos and spend
+        // Record view transaction (paid by credits)
+        transaction = new Transaction({
+          user: userId,
+          video: videoId,
+          type: 'view',
+          amount: finalAmount,
+          amountDisplay: formatUSDC(finalAmount),
+          paymentMethod: 'credit',
+          status: 'completed',
+          metadata: {
+            basePayAmount,
+            basePayApplied,
+            deductedCredits: 1,
+          },
+        });
+        await transaction.save();
+
+        // Update video earnings and creator earnings by per-view amount
+        await (Video as any).findByIdAndUpdate(videoId, {
+          $inc: { totalTipsEarned: finalAmount }
+        });
+        await (User as any).findByIdAndUpdate(video.creator, {
+          $inc: { totalTipsEarned: finalAmount }
+        });
+      } else {
+        // For free videos, record a zero-amount view transaction for tracking
+        transaction = new Transaction({
+          user: userId,
+          video: videoId,
+          type: 'view',
+          amount: 0,
+          amountDisplay: 'FREE',
+          paymentMethod: 'credit',
+          status: 'completed',
+          metadata: { deductedCredits: 0, basePayApplied: false, basePayAmount: 0 },
+        });
+        await transaction.save();
+      }
+
+      // Update user's watched set (no spend here - spend recorded at purchase time)
       await (User as any).findByIdAndUpdate(userId, {
-        $addToSet: { videosWatched: videoId },
-        $inc: { totalTipsSpent: finalAmount }
-      });
-
-      // Update video earnings
-      await (Video as any).findByIdAndUpdate(videoId, {
-        $inc: { totalTipsEarned: finalAmount }
-      });
-
-      // Update creator's earnings
-      await (User as any).findByIdAndUpdate(video.creator, {
-        $inc: { totalTipsEarned: finalAmount }
+        $addToSet: { videosWatched: videoId }
       });
 
       return {
@@ -387,6 +530,7 @@ export async function recordVideoView(videoId: string, userId?: string) {
           transaction,
           videoId,
           userId,
+          remainingCredits: user.viewCredits,
         }
       };
     }
