@@ -29,6 +29,16 @@ const VideoFeed = () => {
 
   // Debug wallet state changes
   useEffect(() => {
+    // Listen for credit purchase events from VideoCard components
+    const handlePurchaseCredits = () => {
+      purchaseCredits();
+    };
+
+    window.addEventListener('purchaseCredits', handlePurchaseCredits);
+    return () => window.removeEventListener('purchaseCredits', handlePurchaseCredits);
+  }, []);
+
+  useEffect(() => {
     console.log('🔍 VideoFeed - Wallet state changed:', {
       isConnected,
       address,
@@ -174,32 +184,36 @@ const VideoFeed = () => {
     }
 
     try {
-      // Proper transaction data structure matching the API expectations
-      const transactionData = {
-        amount: 100000, // 0.1 USDC in wei (6 decimals) - as number
-        amountDisplay: "0.1 USDC", // Human readable amount
-        paymentMethod: paymentMethod as 'crypto' | 'basepay', // Explicit type
-        transactionHash: `0x${Math.random().toString(16).substr(2, 64)}`, // Mock hash
-        metadata: {
-          from: address || "",
-          to: process.env.NEXT_PUBLIC_RECEIVER_ADDRESS || "",
-          gasUsed: "21000",
-          gasPrice: "1000000000"
-        }
-      };
+      // Generate a mock transaction hash for testing
+      const mockTransactionHash = `0x${Math.random().toString(16).substr(2, 64)}`;
+      
+      // Call the new video unlock API endpoint
+      const response = await fetch('/api/video-unlock', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: walletUser._id,
+          videoId: videoId,
+          transactionHash: mockTransactionHash,
+          paymentMethod: paymentMethod,
+          amount: 100000, // 0.1 USDC in wei
+          amountDisplay: "0.1 USDC"
+        })
+      });
 
-      let result;
-      if (paymentMethod === 'basepay') {
-        result = await unlockVideoWithBasePay(walletUser._id, videoId, transactionData);
-      } else {
-        result = await unlockVideo(walletUser._id, videoId, transactionData);
-      }
+      const result = await response.json();
 
       if (result?.success) {
         toast({
           title: "Video Unlocked!",
           description: `Successfully unlocked with ${paymentMethod === 'basepay' ? 'BasePay' : 'regular payment'}`,
         });
+        
+        // Refresh user data to update unlocked videos
+        await refreshUser();
+        
         // Refresh videos to show unlocked status
         refetchVideos();
       } else {
@@ -210,6 +224,66 @@ const VideoFeed = () => {
       toast({
         title: "Unlock Failed",
         description: error instanceof Error ? error.message : "Failed to unlock video",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Handle video tipping with fixed 0.1 USDC amount
+  const handleVideoTip = async (videoId: string, paymentMethod: 'crypto' | 'basepay' = 'crypto') => {
+    if (!isConnected || !walletUser?._id) {
+      toast({
+        title: "Wallet Not Connected",
+        description: "Please connect your wallet to tip creators",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const tipData = {
+        amount: 100000, // Fixed 0.1 USDC in wei (6 decimals)
+        amountDisplay: "0.1 USDC",
+        paymentMethod,
+        transactionHash: `0x${Math.random().toString(16).substr(2, 64)}`, // Mock hash for now
+        metadata: {
+          from: address || "",
+          to: import.meta.env.VITE_RECEIVER_ADDRESS || "0x742d35Cc6634C0532925a3b8D0C9e3e0C0e0e0e0", // Fallback address
+          gasUsed: "21000",
+          gasPrice: "1000000000"
+        }
+      };
+
+      // Call the API endpoint directly
+      const response = await fetch('/api/transactions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          fromUserId: walletUser._id,
+          videoId: videoId,
+          transactionData: tipData
+        })
+      });
+
+      const result = await response.json();
+
+      if (result?.success) {
+        toast({
+          title: "Tip Sent! 💖",
+          description: `Successfully tipped 0.1 USDC to the creator${paymentMethod === 'basepay' ? ' with BasePay' : ''}`,
+        });
+        // Refresh user data to update tip balance
+        await refreshUser();
+      } else {
+        throw new Error(result?.error || 'Failed to send tip');
+      }
+    } catch (error) {
+      console.error('Error sending tip:', error);
+      toast({
+        title: "Tip Failed",
+        description: error instanceof Error ? error.message : "Failed to send tip",
         variant: "destructive",
       });
     }
@@ -300,9 +374,21 @@ const VideoFeed = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
           {filteredVideos.map((video) => {
             const id = video._id || video.id;
-            const isVideoLocked = video.locked && !video.isFree;
+            
+            // Check if user has unlocked this video
+            const isVideoUnlocked = walletUser?.videosUnlocked?.includes(id) || false;
+            
+            // ALL videos are now locked if user has no credits
+            const hasCredits = walletUser?.viewCredits > 0;
+            const isVideoLocked = !hasCredits; // Lock ALL videos when no credits
+            
             const videoPrice = video.price || 100000; // Default 0.1 USDC in wei
             const videoPriceDisplay = video.priceDisplay || "0.1 USDC";
+            const videoTipAmount = video.tipAmount || 100000; // Fixed 0.1 USDC tip
+            const videoTipAmountDisplay = video.tipAmountDisplay || "0.1 USDC";
+            
+            // Check if user has tipped this video
+            const hasTipped = walletUser?.videosTipped?.includes(id) || false;
 
             return (
               <VideoCard
@@ -315,16 +401,33 @@ const VideoFeed = () => {
                 src={getVideoSrc(video)}
                 price={videoPrice}
                 priceDisplay={videoPriceDisplay}
+                tipAmount={videoTipAmount}
+                tipAmountDisplay={videoTipAmountDisplay}
                 isLocked={isVideoLocked}
                 isFree={video.isFree || false}
+                hasTipped={hasTipped}
                 onUnlock={(paymentMethod) => handleVideoUnlock(id, paymentMethod)}
+                onTip={(paymentMethod) => handleVideoTip(id, paymentMethod)}
                 onClick={async () => {
                   try {
+                    // Check if user has sufficient view credits for ALL videos
+                    if (walletUser?.viewCredits <= 0) {
+                      toast({ 
+                        title: 'No views left', 
+                        description: 'Purchase credits to watch videos. 1 USDC = 10 views.' 
+                      });
+                      return;
+                    }
+                    
                     if (isConnected && walletUser?._id) {
                       const result = await recordVideoView(id, walletUser._id);
                       if (!result?.success && result?.error?.toLowerCase().includes('insufficient view credits')) {
                         toast({ title: 'No views left', description: 'Purchase credits to keep watching.' });
                         return;
+                      }
+                      // Refresh user data to update view credits in real-time
+                      if (result?.success) {
+                        await refreshUser();
                       }
                     }
                     // Video play action - removed console.log for production
@@ -350,6 +453,8 @@ const mockVideos = [
     duration: 28,
     price: "0.1 USDC",
     priceDisplay: "0.1 USDC",
+    tipAmount: 100000,
+    tipAmountDisplay: "0.1 USDC",
     thumbnail: "",
     locked: true,
     isFree: false,
@@ -362,6 +467,8 @@ const mockVideos = [
     duration: 35,
     price: "0.1 USDC",
     priceDisplay: "0.1 USDC",
+    tipAmount: 100000,
+    tipAmountDisplay: "0.1 USDC",
     thumbnail: "",
     locked: false,
     isFree: true, // This is a free video
@@ -376,6 +483,8 @@ const mockVideos = [
     duration: 42,
     price: "0.1 USDC",
     priceDisplay: "0.1 USDC",
+    tipAmount: 100000,
+    tipAmountDisplay: "0.1 USDC",
     thumbnail: "",
     locked: true,
     isFree: false,
@@ -388,6 +497,8 @@ const mockVideos = [
     duration: 31,
     price: "0.1 USDC",
     priceDisplay: "0.1 USDC",
+    tipAmount: 100000,
+    tipAmountDisplay: "0.1 USDC",
     thumbnail: "",
     locked: false,
     isFree: true, // This is a free video
@@ -402,6 +513,8 @@ const mockVideos = [
     duration: 30,
     price: "0.1 USDC",
     priceDisplay: "0.1 USDC",
+    tipAmount: 100000,
+    tipAmountDisplay: "0.1 USDC",
     thumbnail: "",
     locked: true,
     isFree: false,
@@ -414,6 +527,8 @@ const mockVideos = [
     duration: 38,
     price: "0.1 USDC",
     priceDisplay: "0.1 USDC",
+    tipAmount: 100000,
+    tipAmountDisplay: "0.1 USDC",
     thumbnail: "",
     locked: false,
     isFree: true, // This is a free video

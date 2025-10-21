@@ -12,6 +12,7 @@ export interface IUser extends Document {
   totalTipsSpent: number;
   videosWatched: mongoose.Types.ObjectId[];
   videosUnlocked: mongoose.Types.ObjectId[];
+  videosTipped: mongoose.Types.ObjectId[]; // New field to track videos user has tipped
   favoriteCategories: string[];
   viewCredits: number;
   // User container fields for organizing user data
@@ -91,6 +92,10 @@ const UserSchema = new Schema<IUser>({
     ref: 'Video'
   }],
   videosUnlocked: [{
+    type: Schema.Types.ObjectId,
+    ref: 'Video'
+  }],
+  videosTipped: [{
     type: Schema.Types.ObjectId,
     ref: 'Video'
   }],

@@ -459,24 +459,24 @@ export async function recordVideoView(videoId: string, userId?: string) {
         };
       }
 
-      // Free videos don't consume credits
+      // ALL videos now require credits - no free videos
+      // Require available credits (stop when credits reach 0)
+      if (!user.viewCredits || user.viewCredits <= 0) {
+        return {
+          success: false,
+          error: 'Insufficient view credits'
+        };
+      }
+      // Deduct one credit for ALL videos
+      user.viewCredits -= 1;
+      await user.save();
+
+      // Determine per-view attribution amount (only for non-free videos)
       const isFree = !!video.isFree;
       let perViewAmount = 0;
       let transaction: any = null;
 
       if (!isFree) {
-        // Require available credits (stop when credits reach 0)
-        if (!user.viewCredits || user.viewCredits <= 0) {
-          return {
-            success: false,
-            error: 'Insufficient view credits'
-          };
-        }
-        // Deduct one credit
-        user.viewCredits -= 1;
-        await user.save();
-
-        // Determine per-view attribution amount
         perViewAmount = getPerViewChargeAmount();
         const { finalAmount, basePayAmount, basePayApplied } = applyBasePay(perViewAmount);
 
@@ -505,7 +505,7 @@ export async function recordVideoView(videoId: string, userId?: string) {
           $inc: { totalTipsEarned: finalAmount }
         });
       } else {
-        // For free videos, record a zero-amount view transaction for tracking
+        // For free videos, still deduct credits but record zero-amount transaction
         transaction = new Transaction({
           user: userId,
           video: videoId,
@@ -514,7 +514,7 @@ export async function recordVideoView(videoId: string, userId?: string) {
           amountDisplay: 'FREE',
           paymentMethod: 'credit',
           status: 'completed',
-          metadata: { deductedCredits: 0, basePayApplied: false, basePayAmount: 0 },
+          metadata: { deductedCredits: 1, basePayApplied: false, basePayAmount: 0 },
         });
         await transaction.save();
       }

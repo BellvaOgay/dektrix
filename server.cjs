@@ -36,6 +36,7 @@ const userSchema = new mongoose.Schema({
   totalTipsSpent: { type: Number, default: 0 },
   videosWatched: [{ type: String }],
   videosUnlocked: [{ type: String }],
+  videosTipped: [{ type: String }],
   favoriteCategories: [{ type: String }],
   viewCredits: { type: Number, default: 10 },
   userContainer: {
@@ -382,6 +383,16 @@ const VideoSchema = new mongoose.Schema({
     type: String,
     default: 'Free'
   },
+  tipAmount: {
+    type: Number,
+    default: 100000, // Fixed 0.1 USDC in wei (6 decimals)
+    required: true
+  },
+  tipAmountDisplay: {
+    type: String,
+    default: "0.1 USDC",
+    required: true
+  },
   difficulty: {
     type: String,
     enum: ['Beginner', 'Intermediate', 'Advanced'],
@@ -541,6 +552,384 @@ app.get('/api/videos', async (req, res) => {
     res.status(500).json({ 
       error: 'Internal server error',
       message: process.env.NODE_ENV === 'development' ? error.message : 'Failed to fetch videos'
+    });
+  }
+});
+
+// Transaction API Routes
+
+// Process tip transaction
+app.post('/api/transactions', async (req, res) => {
+  try {
+    const { fromUserId, videoId, transactionData } = req.body;
+
+    if (!fromUserId || !videoId || !transactionData) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Missing required fields: fromUserId, videoId, and transactionData are required' 
+      });
+    }
+
+    // Find the user who is tipping
+    const fromUser = await User.findById(fromUserId);
+    if (!fromUser) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'User not found' 
+      });
+    }
+
+    // Find the video being tipped
+    const video = await Video.findById(videoId);
+    if (!video) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Video not found' 
+      });
+    }
+
+    // Find the video creator (from Creator model, not User model)
+    const videoCreator = await Creator.findById(video.creator);
+    if (!videoCreator) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Video creator not found' 
+      });
+    }
+
+    // Find the user account associated with the creator's wallet
+    const toUser = await User.findOne({ walletAddress: videoCreator.wallet_address.toLowerCase() });
+    if (!toUser) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Creator user account not found' 
+      });
+    }
+
+    // Fixed tip amount of 0.1 USDC
+    const tipAmount = 0.1;
+    let finalAmount = tipAmount;
+    let basePayAmount = 0;
+    let basePayApplied = false;
+
+    // Apply BasePay if specified
+    if (transactionData.paymentMethod === 'basepay') {
+      // BasePay logic: 50% discount
+      basePayAmount = tipAmount * 0.5;
+      finalAmount = tipAmount - basePayAmount;
+      basePayApplied = true;
+    }
+
+    // Create transaction record
+    let Transaction;
+    try {
+      Transaction = mongoose.model('Transaction');
+    } catch (error) {
+      // Model doesn't exist, create it
+      Transaction = mongoose.model('Transaction', new mongoose.Schema({
+        user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+        video: { type: mongoose.Schema.Types.ObjectId, ref: 'Video', required: true },
+        type: { type: String, required: true },
+        amount: { type: Number, required: true },
+        amountDisplay: { type: String, required: true },
+        finalAmount: { type: Number, required: true },
+        basePayAmount: { type: Number, default: 0 },
+        basePayApplied: { type: Boolean, default: false },
+        paymentMethod: { type: String, default: 'crypto' },
+        transactionHash: { type: String },
+        status: { type: String, default: 'completed' },
+        metadata: { type: mongoose.Schema.Types.Mixed },
+        createdAt: { type: Date, default: Date.now },
+        updatedAt: { type: Date, default: Date.now }
+      }));
+    }
+
+    const transaction = new Transaction({
+      user: fromUserId,
+      video: videoId,
+      type: 'tip',
+      amount: tipAmount,
+      amountDisplay: `${tipAmount} USDC`,
+      finalAmount,
+      basePayAmount,
+      basePayApplied,
+      paymentMethod: transactionData.paymentMethod || 'crypto',
+      transactionHash: transactionData.transactionHash,
+      status: 'completed',
+      metadata: {
+        toUserId: toUser._id,
+        ...transactionData.metadata
+      }
+    });
+
+    await transaction.save();
+
+    // Update user balances
+    fromUser.totalTipsSpent = (fromUser.totalTipsSpent || 0) + finalAmount;
+    toUser.totalTipsEarned = (toUser.totalTipsEarned || 0) + finalAmount;
+
+    // Update video statistics
+    video.totalTips = (video.totalTips || 0) + 1;
+    video.totalTipAmount = (video.totalTipAmount || 0) + finalAmount;
+
+    // Save all updates
+    await Promise.all([
+      fromUser.save(),
+      toUser.save(),
+      video.save()
+    ]);
+
+    console.log(`✅ Tip processed: ${finalAmount} USDC from ${fromUser.username} to ${toUser.username} for video ${video.title}`);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        transaction,
+        finalAmount,
+        basePayAmount,
+        basePayApplied,
+        message: `Successfully tipped ${finalAmount} USDC`
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error processing tip:', error);
+    return res.status(500).json({ 
+      success: false, 
+      error: 'Failed to process tip' 
+    });
+  }
+});
+
+// Video unlock endpoint
+app.post('/api/video-unlock', async (req, res) => {
+  try {
+    const { userId, videoId, transactionHash, paymentMethod, amount, amountDisplay } = req.body;
+
+    // Validate required fields
+    if (!userId || !videoId || !transactionHash || !paymentMethod || !amount) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Missing required fields: userId, videoId, transactionHash, paymentMethod, amount' 
+      });
+    }
+
+    // Validate amount is exactly 0.1 USDC (100000 wei)
+    if (amount !== 100000) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Invalid amount. Videos require exactly 0.1 USDC (100000 wei)' 
+      });
+    }
+
+    // Check if video exists
+    const video = await Video.findById(videoId);
+    if (!video) {
+      return res.status(404).json({ success: false, error: 'Video not found' });
+    }
+
+    // Check if user exists
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, error: 'User not found' });
+    }
+
+    // Check if already unlocked
+    if (user.videosUnlocked.includes(videoId)) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Video already unlocked' 
+      });
+    }
+
+    // Check if transaction hash already exists (prevent double spending)
+    const existingTransaction = await Transaction.findOne({ transactionHash });
+    if (existingTransaction) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Transaction already processed' 
+      });
+    }
+
+    let finalAmount = amount;
+    let basePayAmount = 0;
+    let basePayApplied = false;
+
+    // Apply BasePay if using basepay payment method
+    if (paymentMethod === 'basepay') {
+      // BasePay logic: 50% discount
+      basePayAmount = amount * 0.5;
+      finalAmount = amount - basePayAmount;
+      basePayApplied = true;
+    }
+
+    // Create transaction record
+    const transaction = new Transaction({
+      user: userId,
+      video: videoId,
+      type: 'unlock',
+      amount: finalAmount,
+      amountDisplay: amountDisplay || '0.1 USDC',
+      paymentMethod,
+      transactionHash,
+      status: 'completed',
+      metadata: {
+        basePayAmount,
+        basePayApplied,
+        originalAmount: amount
+      }
+    });
+
+    await transaction.save();
+
+    // Update user's unlocked videos
+    user.videosUnlocked.push(videoId);
+    await user.save();
+
+    // Update video stats
+    video.totalUnlocks += 1;
+    await video.save();
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        message: 'Video unlocked successfully',
+        transaction: {
+          id: transaction._id,
+          type: transaction.type,
+          amount: transaction.amount,
+          amountDisplay: transaction.amountDisplay,
+          paymentMethod: transaction.paymentMethod,
+          transactionHash: transaction.transactionHash,
+          status: transaction.status
+        },
+        video: {
+          id: video._id,
+          title: video.title,
+          totalUnlocks: video.totalUnlocks
+        },
+        user: {
+          id: user._id,
+          unlockedVideosCount: user.videosUnlocked.length
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Error processing video unlock:', error);
+    return res.status(500).json({ 
+      success: false, 
+      error: 'Internal server error: ' + error.message 
+    });
+  }
+});
+
+// Check video unlock status for user
+app.get('/api/user/:userId/video/:videoId/unlock-status', async (req, res) => {
+  try {
+    const { userId, videoId } = req.params;
+
+    if (!userId || !videoId) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Missing required parameters: userId and videoId' 
+      });
+    }
+
+    // Check if user exists
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, error: 'User not found' });
+    }
+
+    // Check if video exists
+    const video = await Video.findById(videoId);
+    if (!video) {
+      return res.status(404).json({ success: false, error: 'Video not found' });
+    }
+
+    // Check if video is free
+    if (video.isFree) {
+      return res.status(200).json({
+        success: true,
+        data: {
+          isUnlocked: true,
+          reason: 'free_video',
+          requiresPayment: false
+        }
+      });
+    }
+
+    // Check if user has unlocked this video
+    const isUnlocked = user.videosUnlocked.includes(videoId);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        isUnlocked,
+        reason: isUnlocked ? 'purchased' : 'locked',
+        requiresPayment: !isUnlocked,
+        price: video.price || 100000, // Default to 0.1 USDC in wei
+        priceDisplay: video.priceDisplay || '0.1 USDC'
+      }
+    });
+
+  } catch (error) {
+    console.error('Error checking video unlock status:', error);
+    return res.status(500).json({ 
+      success: false, 
+      error: 'Internal server error: ' + error.message 
+    });
+  }
+});
+
+// Get user's unlocked videos
+app.get('/api/user/:userId/unlocked-videos', async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    if (!userId) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Missing required parameter: userId' 
+      });
+    }
+
+    const user = await User.findById(userId)
+      .populate({
+        path: 'videosUnlocked',
+        populate: {
+          path: 'creator',
+          select: 'username displayName avatar wallet_address'
+        }
+      })
+      .lean();
+
+    if (!user) {
+      return res.status(404).json({ success: false, error: 'User not found' });
+    }
+
+    // Add unlock status to each video
+    const unlockedVideos = user.videosUnlocked.map((video) => ({
+      ...video,
+      isUnlocked: true,
+      unlockReason: 'purchased'
+    }));
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        unlockedVideos,
+        totalUnlocked: unlockedVideos.length,
+        userId: user._id
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching user unlocked videos:', error);
+    return res.status(500).json({ 
+      success: false, 
+      error: 'Internal server error: ' + error.message 
     });
   }
 });

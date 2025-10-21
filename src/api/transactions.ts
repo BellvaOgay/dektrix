@@ -157,34 +157,59 @@ export async function updateTransactionStatus(
   }
 }
 
-// Process tip transaction
+// Process tip transaction with fixed 0.1 USDC amount
 export async function processTip(
   fromUserId: string,
-  toUserId: string,
   videoId: string,
-  amount: number,
-  amountDisplay: string,
-  paymentMethod: 'crypto' | 'farcaster' | 'credit',
-  transactionHash?: string
+  transactionData: {
+    amount: number;
+    amountDisplay: string;
+    transactionHash?: string;
+    paymentMethod?: 'crypto' | 'basepay';
+    metadata?: any;
+  }
 ) {
   try {
     await connectDB();
 
-    // Verify users and video exist
-    const [fromUser, toUser, video] = await Promise.all([
-      (User as any).findById(fromUserId),
-      (User as any).findById(toUserId),
-      (Video as any).findById(videoId)
-    ]);
+    // Fixed tip amount - always 0.1 USDC
+    const FIXED_TIP_AMOUNT = 100000; // 0.1 USDC in wei (6 decimals)
+    const FIXED_TIP_DISPLAY = "0.1 USDC";
 
-    if (!fromUser || !toUser || !video) {
+    // Get video and find creator
+    const video = await (Video as any).findById(videoId).populate('creator');
+    if (!video) {
       return {
         success: false,
-        error: 'User or video not found'
+        error: 'Video not found'
       };
     }
 
-    const { finalAmount, basePayAmount, basePayApplied } = applyBasePay(amount);
+    // Get users
+    const [fromUser, toUser] = await Promise.all([
+      (User as any).findById(fromUserId),
+      (User as any).findOne({ wallet_address: video.creatorWallet }) || 
+      (User as any).findById(video.creator)
+    ]);
+
+    if (!fromUser || !toUser) {
+      return {
+        success: false,
+        error: 'User not found'
+      };
+    }
+
+    // Apply BasePay if using basepay payment method
+    let finalAmount = FIXED_TIP_AMOUNT;
+    let basePayAmount = 0;
+    let basePayApplied = false;
+
+    if (transactionData.paymentMethod === 'basepay') {
+      const basePayResult = applyBasePay(FIXED_TIP_AMOUNT);
+      finalAmount = basePayResult.finalAmount;
+      basePayAmount = basePayResult.basePayAmount;
+      basePayApplied = basePayResult.basePayApplied;
+    }
 
     // Create transaction
     const transaction = new Transaction({
@@ -192,20 +217,27 @@ export async function processTip(
       video: videoId,
       type: 'tip',
       amount: finalAmount,
-      amountDisplay,
-      paymentMethod,
-      transactionHash,
+      amountDisplay: FIXED_TIP_DISPLAY,
+      paymentMethod: transactionData.paymentMethod || 'crypto',
+      transactionHash: transactionData.transactionHash,
       status: 'completed',
       metadata: {
         basePayAmount,
         basePayApplied,
+        ...transactionData.metadata
       }
     });
 
     await transaction.save();
 
-    // Update user balances
+    // Update user balances and track tipped videos
     fromUser.totalTipsSpent += finalAmount;
+    
+    // Add video to user's tipped videos if not already present
+    if (!fromUser.videosTipped.includes(videoId)) {
+      fromUser.videosTipped.push(videoId);
+    }
+    
     toUser.totalTipsEarned += finalAmount;
 
     await Promise.all([
@@ -223,7 +255,9 @@ export async function processTip(
         transaction,
         fromUser,
         toUser,
-        video
+        video,
+        tipAmount: finalAmount,
+        tipAmountDisplay: FIXED_TIP_DISPLAY
       }
     };
   } catch (error) {

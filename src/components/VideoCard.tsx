@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Play, Lock, Zap } from "lucide-react";
+import { Play, Lock, Zap, Heart } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { calculateBasePayPrice, isBasePayEnabled } from "@/lib/utils";
 
@@ -13,9 +13,13 @@ interface VideoCardProps {
   src?: string;
   price?: number; // Price in wei/smallest units
   priceDisplay?: string; // Human readable price
+  tipAmount?: number; // Fixed tip amount in wei
+  tipAmountDisplay?: string; // Human readable tip amount
   isLocked?: boolean;
   isFree?: boolean;
+  hasTipped?: boolean; // New prop to track if user has tipped this video
   onUnlock?: (paymentMethod: 'crypto' | 'basepay') => void;
+  onTip?: (paymentMethod: 'crypto' | 'basepay') => void;
 }
 
 const VideoCard = ({ 
@@ -28,9 +32,13 @@ const VideoCard = ({
   src = "",
   price = 0,
   priceDisplay = "Free",
+  tipAmount = 100000, // Default 0.1 USDC in wei
+  tipAmountDisplay = "0.1 USDC",
   isLocked = false,
   isFree = true,
-  onUnlock
+  hasTipped = false,
+  onUnlock,
+  onTip
 }: VideoCardProps) => {
   const [isHovered, setIsHovered] = useState(false);
   const [showPaymentOptions, setShowPaymentOptions] = useState(false);
@@ -39,13 +47,16 @@ const VideoCard = ({
   const basePayPricing = price > 0 ? calculateBasePayPrice(price) : null;
 
   const handleClick = () => {
-    if (isLocked && !isFree && onUnlock) {
+    // Prevent video playback if locked (no credits available)
+    if (isLocked) {
       setShowPaymentOptions(true);
       return;
     }
     
-    if (onClick) {
+    // Allow video playback if user has credits
+    if (!isLocked && onClick) {
       onClick();
+      return;
     }
   };
 
@@ -81,43 +92,29 @@ const VideoCard = ({
       {showPaymentOptions && (
         <div className="absolute inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center rounded-2xl">
           <div className="bg-card p-6 rounded-xl border border-border max-w-sm w-full mx-4">
-            <h3 className="text-lg font-bold mb-4 text-center">Unlock Video</h3>
+            <h3 className="text-lg font-bold mb-4 text-center">Purchase Credits</h3>
             <p className="text-sm text-muted-foreground mb-6 text-center">
-              Choose your payment method to unlock "{title}"
+              You need credits to watch videos. Purchase 10 views for 1 USDC.
             </p>
             
             <div className="space-y-3">
-              {/* Regular Payment */}
+              {/* Credit Purchase Button */}
               <button
-                onClick={() => handlePayment('crypto')}
-                className="w-full p-4 border border-border rounded-lg hover:border-primary/50 transition-colors flex items-center justify-between"
+                onClick={() => {
+                  setShowPaymentOptions(false);
+                  // This will be handled by the parent component's purchase credits function
+                  window.dispatchEvent(new CustomEvent('purchaseCredits'));
+                }}
+                className="w-full p-4 border border-primary/50 bg-primary/5 rounded-lg hover:bg-primary/10 transition-colors flex items-center justify-center"
               >
                 <div className="flex items-center gap-3">
-                  <Lock className="w-5 h-5 text-primary" />
-                  <div className="text-left">
-                    <div className="font-medium">Regular Payment</div>
-                    <div className="text-sm text-muted-foreground">{priceDisplay}</div>
+                  <Zap className="w-5 h-5 text-primary" />
+                  <div className="text-center">
+                    <div className="font-medium">Buy 10 Views</div>
+                    <div className="text-sm text-muted-foreground">1 USDC</div>
                   </div>
                 </div>
               </button>
-
-              {/* BasePay Option */}
-              {basePayEnabled && basePayPricing && (
-                <button
-                  onClick={() => handlePayment('basepay')}
-                  className="w-full p-4 border border-primary/50 bg-primary/5 rounded-lg hover:bg-primary/10 transition-colors flex items-center justify-between"
-                >
-                  <div className="flex items-center gap-3">
-                    <Zap className="w-5 h-5 text-primary" />
-                    <div className="text-left">
-                      <div className="font-medium flex items-center gap-2">
-                        BasePay <span className="text-xs bg-primary/20 text-primary px-2 py-1 rounded">Gasless</span>
-                      </div>
-                      <div className="text-sm text-muted-foreground">{basePayPricing.displayPrice}</div>
-                    </div>
-                  </div>
-                </button>
-              )}
             </div>
 
             <button
@@ -131,8 +128,8 @@ const VideoCard = ({
       )}
       {/* Video Preview Area */}
       <div className="relative aspect-[9/16] bg-gradient-to-br from-primary/20 to-accent/20">
-        {/* Render playable video when src is available */}
-        {src ? (
+        {/* Render playable video when src is available AND user has credits */}
+        {src && !isLocked ? (
           <video
             className="absolute inset-0 w-full h-full object-cover"
             src={src}
@@ -158,10 +155,23 @@ const VideoCard = ({
               loading="lazy"
             />
 
-            {/* Animated Background Placeholder */}
-            <div className="absolute inset-0 flex items-center justify-center">
-              <Play className="w-16 h-16 text-muted-foreground animate-pulse" aria-hidden="true" />
-            </div>
+            {/* Lock Overlay for ALL Videos when no credits */}
+            {isLocked && (
+              <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center">
+                <div className="text-center text-white">
+                  <Lock className="w-12 h-12 mx-auto mb-2 text-primary" />
+                  <p className="text-sm font-medium">No Credits Available</p>
+                  <p className="text-xs text-gray-300">Purchase credits to watch videos</p>
+                </div>
+              </div>
+            )}
+
+            {/* Animated Background Placeholder for Videos with Credits */}
+            {!isLocked && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <Play className="w-16 h-16 text-muted-foreground animate-pulse" aria-hidden="true" />
+              </div>
+            )}
           </>
         )}
 
@@ -196,6 +206,76 @@ const VideoCard = ({
         {description && (
           <p className="text-xs text-muted-foreground line-clamp-2" aria-label={`Description for ${title}`}>{description}</p>
         )}
+        
+        {/* Tip Button */}
+        <div className="flex items-center justify-between pt-2">
+          <div className="flex-1">
+            {/* Tip requirement indicator for non-free videos */}
+            {!isFree && !hasTipped && (
+              <div className="flex items-center gap-1 text-xs text-amber-500">
+                <Heart className="w-3 h-3" />
+                <span>Tip to view</span>
+              </div>
+            )}
+            {!isFree && hasTipped && (
+              <div className="flex items-center gap-1 text-xs text-green-500">
+                <Heart className="w-3 h-3 fill-current" />
+                <span>Tipped</span>
+              </div>
+            )}
+          </div>
+          
+          {/* Tip Button with Payment Options */}
+          <div className="relative">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (basePayEnabled) {
+                  setShowPaymentOptions(!showPaymentOptions);
+                } else if (onTip) {
+                  onTip('crypto');
+                }
+              }}
+              className={cn(
+                "flex items-center gap-2 px-3 py-1.5 text-white text-xs font-medium rounded-full transition-all duration-200 hover:scale-105 shadow-sm",
+                hasTipped 
+                  ? "bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600"
+                  : "bg-gradient-to-r from-pink-500 to-red-500 hover:from-pink-600 hover:to-red-600"
+              )}
+              title={`Tip ${tipAmountDisplay}`}
+            >
+              <Heart className={cn("w-3 h-3", hasTipped && "fill-current")} />
+              <span>{hasTipped ? "Tipped" : `Tip ${tipAmountDisplay}`}</span>
+            </button>
+
+            {/* Payment Options Dropdown */}
+            {showPaymentOptions && basePayEnabled && (
+              <div className="absolute right-0 top-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-10 min-w-[120px]">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowPaymentOptions(false);
+                    if (onTip) onTip('crypto');
+                  }}
+                  className="w-full px-3 py-2 text-left text-xs hover:bg-gray-100 dark:hover:bg-gray-700 rounded-t-lg"
+                >
+                  💳 Crypto
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowPaymentOptions(false);
+                    if (onTip) onTip('basepay');
+                  }}
+                  className="w-full px-3 py-2 text-left text-xs hover:bg-gray-100 dark:hover:bg-gray-700 rounded-b-lg flex items-center gap-1"
+                >
+                  <Zap className="w-3 h-3 text-primary" />
+                  BasePay
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -10,6 +10,8 @@ export interface IVideo extends Document {
   tags: string[];
   price: number; // in wei or smallest unit
   priceDisplay: string; // human readable price like "$0.01"
+  tipAmount: number; // Fixed tip amount in wei (0.1 USDC = 100000)
+  tipAmountDisplay: string; // Human readable tip amount "0.1 USDC"
   difficulty: 'Beginner' | 'Intermediate' | 'Advanced';
   creator: mongoose.Types.ObjectId;
   creatorWallet?: string; // Optional wallet address for API compatibility
@@ -67,6 +69,16 @@ const VideoSchema = new Schema<IVideo>({
   },
   priceDisplay: {
     type: String,
+    required: true
+  },
+  tipAmount: {
+    type: Number,
+    default: 100000, // Fixed 0.1 USDC in wei (6 decimals)
+    required: true
+  },
+  tipAmountDisplay: {
+    type: String,
+    default: "0.1 USDC",
     required: true
   },
   difficulty: {
