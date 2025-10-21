@@ -1,17 +1,17 @@
 import { connectDB } from '../_lib/database';
 import User from '../../src/models/User';
+import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-interface ApiRequest {
-  method: string;
-  body: { [key: string]: any };
-}
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Enable CORS
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-interface ApiResponse {
-  status: (code: number) => ApiResponse;
-  json: (data: any) => void;
-}
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
 
-export default async function handler(req: ApiRequest, res: ApiResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -33,12 +33,16 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       });
     }
 
+    console.log('🔌 Connecting to database...');
     await connectDB();
+    console.log('✅ Database connected');
 
     // Find user by wallet address
+    console.log('🔍 Finding user:', walletAddress.toLowerCase());
     const user = await User.findOne({ walletAddress: walletAddress.toLowerCase() });
     
     if (!user) {
+      console.log('❌ User not found');
       return res.status(404).json({ 
         success: false, 
         error: 'User not found' 
@@ -47,7 +51,30 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
     // Add credits to user
     const add = Math.max(creditsToAdd, 0);
-    user.viewCredits = (user.viewCredits || 0) + add;
+    const previousCredits = user.viewCredits || 0;
+    user.viewCredits = previousCredits + add;
+
+    console.log('💰 Adding credits:', { previousCredits, add, newTotal: user.viewCredits });
+    await user.save();
+    console.log('✅ Credits updated successfully');
+
+    return res.status(200).json({ 
+      success: true, 
+      data: {
+        walletAddress: user.walletAddress,
+        viewCredits: user.viewCredits,
+        creditsAdded: add
+      }
+    });
+
+  } catch (error: any) {
+    console.error('❌ Error adding credits:', error);
+    return res.status(500).json({ 
+      success: false, 
+      error: error.message || 'Internal server error' 
+    });
+  }
+}
     await user.save();
 
     console.log(`✅ Added ${add} credits to user ${walletAddress}. New balance: ${user.viewCredits}`);

@@ -1,17 +1,17 @@
 import { connectDB } from '../_lib/database';
 import User from '../../src/models/User';
+import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-interface ApiRequest {
-  method: string;
-  body: { [key: string]: any };
-}
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Enable CORS
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-interface ApiResponse {
-  status: (code: number) => ApiResponse;
-  json: (data: any) => void;
-}
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
 
-export default async function handler(req: ApiRequest, res: ApiResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -23,12 +23,16 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       return res.status(400).json({ error: 'Wallet address is required' });
     }
 
+    console.log('🔌 Connecting to database...');
     await connectDB();
+    console.log('✅ Database connected');
 
     // Check if user already exists
+    console.log('🔍 Finding user:', walletAddress.toLowerCase());
     let user = await User.findOne({ walletAddress: walletAddress.toLowerCase() });
 
     if (user) {
+      console.log('👤 User exists, updating last login');
       // Update last login
       user.lastLoginAt = new Date();
       await user.save();
@@ -54,6 +58,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         isNewUser: false
       });
     } else {
+      console.log('🆕 Creating new user');
       // Create new user with wallet address
       const username = userData?.username || `user_${walletAddress.slice(-8)}`;
 
@@ -84,6 +89,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       });
 
       await user.save();
+      console.log('✅ New user created successfully');
 
       return res.status(201).json({
         success: true,
@@ -107,9 +113,13 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       });
     }
   } catch (error: any) {
-    console.error('Error creating/getting user by wallet:', error);
+    console.error('❌ Error creating/getting user by wallet:', error);
     res.status(500).json({ 
       error: 'Internal server error',
+      details: error.message
+    });
+  }
+}
       message: process.env.NODE_ENV === 'development' ? error.message : 'Failed to create or get user'
     });
   }
