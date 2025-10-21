@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Play, Lock, Zap, Heart } from "lucide-react";
+import { Play, Lock, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { calculateBasePayPrice, isBasePayEnabled } from "@/lib/utils";
 
@@ -13,13 +13,9 @@ interface VideoCardProps {
   src?: string;
   price?: number; // Price in wei/smallest units
   priceDisplay?: string; // Human readable price
-  tipAmount?: number; // Fixed tip amount in wei
-  tipAmountDisplay?: string; // Human readable tip amount
   isLocked?: boolean;
   isFree?: boolean;
-  hasTipped?: boolean; // New prop to track if user has tipped this video
   onUnlock?: (paymentMethod: 'crypto' | 'basepay') => void;
-  onTip?: (paymentMethod: 'crypto' | 'basepay') => void;
 }
 
 const VideoCard = ({ 
@@ -32,13 +28,9 @@ const VideoCard = ({
   src = "",
   price = 0,
   priceDisplay = "Free",
-  tipAmount = 100000, // Default 0.1 USDC in wei
-  tipAmountDisplay = "0.1 USDC",
   isLocked = false,
   isFree = true,
-  hasTipped = false,
-  onUnlock,
-  onTip
+  onUnlock
 }: VideoCardProps) => {
   const [isHovered, setIsHovered] = useState(false);
   const [showPaymentOptions, setShowPaymentOptions] = useState(false);
@@ -155,14 +147,23 @@ const VideoCard = ({
               loading="lazy"
             />
 
-            {/* Lock Overlay for ALL Videos when no credits */}
+            {/* Lock Overlay for videos when no credits available */}
             {isLocked && (
-              <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center">
-                <div className="text-center text-white">
-                  <Lock className="w-12 h-12 mx-auto mb-2 text-primary" />
-                  <p className="text-sm font-medium">No Credits Available</p>
-                  <p className="text-xs text-gray-300">Purchase credits to watch videos</p>
-                </div>
+              <div className="absolute inset-0 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center z-20 rounded-lg">
+                <Lock className="w-8 h-8 text-white mb-2" />
+                <p className="text-white text-sm font-medium mb-3 text-center px-4">
+                  Purchase credits to watch videos
+                </p>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    // Dispatch custom event for credit purchase
+                    window.dispatchEvent(new CustomEvent('purchaseCredits'));
+                  }}
+                  className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 hover:scale-105"
+                >
+                  Buy 10 Views ($1 USDC)
+                </button>
               </div>
             )}
 
@@ -207,75 +208,7 @@ const VideoCard = ({
           <p className="text-xs text-muted-foreground line-clamp-2" aria-label={`Description for ${title}`}>{description}</p>
         )}
         
-        {/* Tip Button */}
-        <div className="flex items-center justify-between pt-2">
-          <div className="flex-1">
-            {/* Tip requirement indicator for non-free videos */}
-            {!isFree && !hasTipped && (
-              <div className="flex items-center gap-1 text-xs text-amber-500">
-                <Heart className="w-3 h-3" />
-                <span>Tip to view</span>
-              </div>
-            )}
-            {!isFree && hasTipped && (
-              <div className="flex items-center gap-1 text-xs text-green-500">
-                <Heart className="w-3 h-3 fill-current" />
-                <span>Tipped</span>
-              </div>
-            )}
-          </div>
-          
-          {/* Tip Button with Payment Options */}
-          <div className="relative">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                if (basePayEnabled) {
-                  setShowPaymentOptions(!showPaymentOptions);
-                } else if (onTip) {
-                  onTip('crypto');
-                }
-              }}
-              className={cn(
-                "flex items-center gap-2 px-3 py-1.5 text-white text-xs font-medium rounded-full transition-all duration-200 hover:scale-105 shadow-sm",
-                hasTipped 
-                  ? "bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600"
-                  : "bg-gradient-to-r from-pink-500 to-red-500 hover:from-pink-600 hover:to-red-600"
-              )}
-              title={`Tip ${tipAmountDisplay}`}
-            >
-              <Heart className={cn("w-3 h-3", hasTipped && "fill-current")} />
-              <span>{hasTipped ? "Tipped" : `Tip ${tipAmountDisplay}`}</span>
-            </button>
 
-            {/* Payment Options Dropdown */}
-            {showPaymentOptions && basePayEnabled && (
-              <div className="absolute right-0 top-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-10 min-w-[120px]">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShowPaymentOptions(false);
-                    if (onTip) onTip('crypto');
-                  }}
-                  className="w-full px-3 py-2 text-left text-xs hover:bg-gray-100 dark:hover:bg-gray-700 rounded-t-lg"
-                >
-                  💳 Crypto
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShowPaymentOptions(false);
-                    if (onTip) onTip('basepay');
-                  }}
-                  className="w-full px-3 py-2 text-left text-xs hover:bg-gray-100 dark:hover:bg-gray-700 rounded-b-lg flex items-center gap-1"
-                >
-                  <Zap className="w-3 h-3 text-primary" />
-                  BasePay
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
       </div>
     </div>
   );

@@ -229,65 +229,7 @@ const VideoFeed = () => {
     }
   };
 
-  // Handle video tipping with fixed 0.1 USDC amount
-  const handleVideoTip = async (videoId: string, paymentMethod: 'crypto' | 'basepay' = 'crypto') => {
-    if (!isConnected || !walletUser?._id) {
-      toast({
-        title: "Wallet Not Connected",
-        description: "Please connect your wallet to tip creators",
-        variant: "destructive",
-      });
-      return;
-    }
 
-    try {
-      const tipData = {
-        amount: 100000, // Fixed 0.1 USDC in wei (6 decimals)
-        amountDisplay: "0.1 USDC",
-        paymentMethod,
-        transactionHash: `0x${Math.random().toString(16).substr(2, 64)}`, // Mock hash for now
-        metadata: {
-          from: address || "",
-          to: import.meta.env.VITE_RECEIVER_ADDRESS || "0x742d35Cc6634C0532925a3b8D0C9e3e0C0e0e0e0", // Fallback address
-          gasUsed: "21000",
-          gasPrice: "1000000000"
-        }
-      };
-
-      // Call the API endpoint directly
-      const response = await fetch('/api/transactions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          fromUserId: walletUser._id,
-          videoId: videoId,
-          transactionData: tipData
-        })
-      });
-
-      const result = await response.json();
-
-      if (result?.success) {
-        toast({
-          title: "Tip Sent! 💖",
-          description: `Successfully tipped 0.1 USDC to the creator${paymentMethod === 'basepay' ? ' with BasePay' : ''}`,
-        });
-        // Refresh user data to update tip balance
-        await refreshUser();
-      } else {
-        throw new Error(result?.error || 'Failed to send tip');
-      }
-    } catch (error) {
-      console.error('Error sending tip:', error);
-      toast({
-        title: "Tip Failed",
-        description: error instanceof Error ? error.message : "Failed to send tip",
-        variant: "destructive",
-      });
-    }
-  };
 
   // Function to refetch videos after unlock
   const refetchVideos = async () => {
@@ -384,11 +326,6 @@ const VideoFeed = () => {
             
             const videoPrice = video.price || 100000; // Default 0.1 USDC in wei
             const videoPriceDisplay = video.priceDisplay || "0.1 USDC";
-            const videoTipAmount = video.tipAmount || 100000; // Fixed 0.1 USDC tip
-            const videoTipAmountDisplay = video.tipAmountDisplay || "0.1 USDC";
-            
-            // Check if user has tipped this video
-            const hasTipped = walletUser?.videosTipped?.includes(id) || false;
 
             return (
               <VideoCard
@@ -401,13 +338,9 @@ const VideoFeed = () => {
                 src={getVideoSrc(video)}
                 price={videoPrice}
                 priceDisplay={videoPriceDisplay}
-                tipAmount={videoTipAmount}
-                tipAmountDisplay={videoTipAmountDisplay}
                 isLocked={isVideoLocked}
                 isFree={video.isFree || false}
-                hasTipped={hasTipped}
                 onUnlock={(paymentMethod) => handleVideoUnlock(id, paymentMethod)}
-                onTip={(paymentMethod) => handleVideoTip(id, paymentMethod)}
                 onClick={async () => {
                   try {
                     // Check if user has sufficient view credits for ALL videos
