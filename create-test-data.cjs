@@ -1,7 +1,7 @@
 require('dotenv').config();
 const mongoose = require('mongoose');
 
-const MONGODB_URI = 'mongodb+srv://dekabellworld_db_user:vkzIzeolEfRVNTzg@cluster0.t2pqnic.mongodb.net/dektirk';
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://dekabellworld_db_user:vkzIzeolEfRVNTzg@cluster0.t2pqnic.mongodb.net/dektrix';
 
 // Define schemas
 const VideoSchema = new mongoose.Schema({
@@ -155,6 +155,20 @@ async function createTestData() {
         price: 0,
         priceDisplay: 'Free',
         difficulty: 'Beginner',
+        creator: testUser._id,
+        isFree: true
+      },
+      {
+        title: 'Web3 Security Fundamentals',
+        description: 'Essential security practices for Web3 development and smart contracts',
+        thumbnail: '/placeholder.svg',
+        videoUrl: '/videos/Vid4.mp4',
+        duration: 240,
+        category: 'web3-security',
+        tags: ['Web3', 'Security', 'Smart Contracts'],
+        price: 100000,
+        priceDisplay: '0.1 USDC',
+        difficulty: 'Intermediate',
         creator: testUser._id,
         isFree: true
       }

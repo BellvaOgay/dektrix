@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Play, Lock, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { calculateBasePayPrice, isBasePayEnabled } from "@/lib/utils";
 import { deductCreditOnPlay } from "@/api/videos";
 import { useBaseWallet } from "@/hooks/useBaseWallet";
+import { useVideoPlayer } from "@/contexts/VideoPlayerContext";
 
 interface VideoCardProps {
   title: string;
@@ -22,13 +23,13 @@ interface VideoCardProps {
   onCreditUpdate?: (remainingCredits: number) => void; // Callback for credit updates
 }
 
-const VideoCard = ({ 
-  title, 
-  topic, 
-  duration, 
-  thumbnail, 
-  onClick, 
-  description = "", 
+const VideoCard = ({
+  title,
+  topic,
+  duration,
+  thumbnail,
+  onClick,
+  description = "",
   src = "",
   price = 0,
   priceDisplay = "Free",
@@ -42,58 +43,102 @@ const VideoCard = ({
   const [showPaymentOptions, setShowPaymentOptions] = useState(false);
   const [hasDeductedCredit, setHasDeductedCredit] = useState(false);
   
+  const videoRef = useRef<HTMLVideoElement>(null);
   const { user: walletUser } = useBaseWallet();
+  const { currentPlayingVideo, setCurrentPlayingVideo, registerVideo, unregisterVideo } = useVideoPlayer();
 
   const basePayEnabled = isBasePayEnabled();
   const basePayPricing = price > 0 ? calculateBasePayPrice(price) : null;
 
-  // Handle credit deduction when video starts playing
-  const handleVideoPlay = async () => {
-    // TEMPORARILY DISABLED FOR TESTING - Skip credit deduction to prevent auto-pause
-    return;
-    
+  // Register/unregister video element with the global player context
+  useEffect(() => {
+    if (videoRef.current && videoId) {
+      registerVideo(videoId, videoRef.current);
+      
+      return () => {
+        unregisterVideo(videoId);
+      };
+    }
+  }, [videoId, registerVideo, unregisterVideo]);
+
+  // Handle credit deduction when play button is clicked
+  const handleCreditDeduction = async () => {
     if (!walletUser?.walletAddress || !videoId || hasDeductedCredit) {
-      return;
+      return true; // Allow playback if already deducted or no wallet
     }
 
     try {
       const result = await deductCreditOnPlay(walletUser.walletAddress, videoId);
-      
+
       if (result.success) {
         setHasDeductedCredit(true);
         console.log('Credit deducted successfully:', result.data.message);
-        
+
         // Update parent component with new credit balance
         if (onCreditUpdate && result.data.remainingCredits !== undefined) {
           onCreditUpdate(result.data.remainingCredits);
         }
-        
+
         // Trigger a refresh of user data to update credits in navbar
         // This will be handled by the parent component that has access to refreshUser
+        return true; // Allow playback
       } else {
         console.error('Failed to deduct credit:', result.error);
-        // If credit deduction fails, pause the video
-        const videoElement = document.querySelector(`video[data-video-id="${videoId}"]`) as HTMLVideoElement;
-        if (videoElement) {
-          videoElement.pause();
+
+        // Check if it's an insufficient credits error
+        if (result.error?.includes('Insufficient view credits')) {
+          console.log('User has no credits remaining - showing payment options');
+          return 'insufficient_credits'; // Special return value for insufficient credits
         }
+
+        return false; // Prevent playback for other errors
       }
     } catch (error) {
       console.error('Error during credit deduction:', error);
+      return false; // Prevent playback on error
     }
   };
 
-  const handleClick = () => {
+  // Handle video play event (after credit deduction)
+  const handleVideoPlay = async () => {
+    // Set this video as the currently playing video
+    if (videoId) {
+      setCurrentPlayingVideo(videoId);
+    }
+    console.log('Video started playing for:', title);
+  };
+
+  // Handle video pause event
+  const handleVideoPause = () => {
+    // Clear the currently playing video if this video is paused
+    if (videoId && currentPlayingVideo === videoId) {
+      setCurrentPlayingVideo(null);
+    }
+    console.log('Video paused for:', title);
+  };
+
+  const handleClick = async () => {
     // Prevent video playback if locked (no credits available)
     if (isLocked) {
       setShowPaymentOptions(true);
       return;
     }
-    
-    // Allow video playback if user has credits
-    if (!isLocked && onClick) {
-      onClick();
-      return;
+
+    // Deduct credit before allowing video playback
+    if (!isLocked) {
+      const canPlay = await handleCreditDeduction();
+
+      if (canPlay === true && onClick) {
+        onClick();
+      } else if (canPlay === 'insufficient_credits') {
+        // User ran out of credits - show payment options
+        console.log('Insufficient credits - showing payment options');
+        setShowPaymentOptions(true);
+      } else if (canPlay === false) {
+        // Other error occurred - show payment options as fallback
+        console.error('Cannot play video: Credit deduction failed');
+        setShowPaymentOptions(true);
+      }
     }
   };
 
@@ -133,7 +178,7 @@ const VideoCard = ({
             <p className="text-sm text-muted-foreground mb-6 text-center">
               You need credits to watch videos. Purchase 10 views for 1 USDC.
             </p>
-            
+
             <div className="space-y-3">
               {/* Credit Purchase Button */}
               <button
@@ -168,6 +213,7 @@ const VideoCard = ({
         {/* Render playable video when src is available AND user has credits */}
         {src && !isLocked ? (
           <video
+            ref={videoRef}
             className="absolute inset-0 w-full h-full object-cover"
             src={src}
             controls
@@ -176,6 +222,7 @@ const VideoCard = ({
             aria-label={`Video player for ${title}`}
             data-video-id={videoId}
             onPlay={handleVideoPlay}
+            onPause={handleVideoPause}
             onError={(e) => {
               // Silently handle video load errors to reduce console spam
               // The error suppression is handled globally in useBaseWallet
@@ -257,7 +304,7 @@ const VideoCard = ({
         {description && (
           <p className="text-xs text-muted-foreground line-clamp-2" aria-label={`Description for ${title}`}>{description}</p>
         )}
-        
+
 
       </div>
     </div>

@@ -228,7 +228,7 @@ const VideoFeed = () => {
     try {
       // Generate a mock transaction hash for testing
       const mockTransactionHash = `0x${Math.random().toString(16).substr(2, 64)}`;
-      
+
       // Call the new video unlock API endpoint
       const response = await fetch('/api/video-unlock', {
         method: 'POST',
@@ -252,10 +252,10 @@ const VideoFeed = () => {
           title: "Video Unlocked!",
           description: `Successfully unlocked with ${paymentMethod === 'basepay' ? 'BasePay' : 'regular payment'}`,
         });
-        
+
         // Refresh user data to update unlocked videos
         await refreshUser();
-        
+
         // Refresh videos to show unlocked status
         refetchVideos();
       } else {
@@ -320,8 +320,8 @@ const VideoFeed = () => {
             )}
             <button
               className={`px-3 py-2 rounded text-white text-sm transition-colors ${!isConnected
-                  ? 'bg-gray-400 cursor-not-allowed opacity-50'
-                  : 'bg-blue-600 hover:bg-blue-700 cursor-pointer'
+                ? 'bg-gray-400 cursor-not-allowed opacity-50'
+                : 'bg-blue-600 hover:bg-blue-700 cursor-pointer'
                 }`}
               onClick={(e) => {
                 e.preventDefault();
@@ -358,14 +358,14 @@ const VideoFeed = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
           {filteredVideos.map((video) => {
             const id = video._id || video.id;
-            
+
             // Check if user has unlocked this video
             const isVideoUnlocked = walletUser?.videosUnlocked?.includes(id) || false;
-            
+
             // Lock videos when user has no credits (0 or less)
             const hasCredits = walletUser?.viewCredits > 0;
             const isVideoLocked = false; // TEMPORARILY DISABLED FOR TESTING - Lock ALL videos when no credits
-            
+
             const videoPrice = video.price || 100000; // Default 0.1 USDC in wei
             const videoPriceDisplay = video.priceDisplay || "0.1 USDC";
 
@@ -389,13 +389,13 @@ const VideoFeed = () => {
                   try {
                     // Check if user has sufficient view credits for ALL videos
                     if (walletUser?.viewCredits <= 0) {
-                      toast({ 
-                        title: 'No views left', 
-                        description: 'Purchase credits to watch videos. 1 USDC = 10 views.' 
+                      toast({
+                        title: 'No views left',
+                        description: 'Purchase credits to watch videos. 1 USDC = 10 views.'
                       });
                       return;
                     }
-                    
+
                     if (isConnected && walletUser?._id) {
                       const result = await recordVideoView(id, walletUser._id);
                       if (!result?.success && result?.error?.toLowerCase().includes('insufficient view credits')) {

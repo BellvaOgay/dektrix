@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Single Video Playback Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .video-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .video-card {
+            background: white;
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        video {
+            width: 100%;
+            height: 200px;
+            border-radius: 4px;
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        h3 {
+            margin-top: 0;
+            color: #555;
+        }
+        .instructions {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .status {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .playing {
+            background-color: #c8e6c9;
+            color: #2e7d32;
+        }
+        .paused {
+            background-color: #ffecb3;
+            color: #f57f17;
+        }
+    </style>
+</head>
+<body>
+    <h1>Single Video Playback Test</h1>
+    
+    <div class="instructions">
+        <h3>Test Instructions:</h3>
+        <p>1. Click play on any video below</p>
+        <p>2. Try playing another video - the first one should automatically pause</p>
+        <p>3. Only one video should be able to play at a time</p>
+        <p>4. The status indicators below each video will show the current state</p>
+    </div>
+
+    <div class="video-container">
+        <div class="video-card">
+            <h3>Video 1</h3>
+            <video id="video1" controls preload="metadata">
+                <source src="/videos/Vid1.mp4" type="video/mp4">
+                Your browser does not support the video tag.
+            </video>
+            <div id="status1" class="status paused">Status: Paused</div>
+        </div>
+
+        <div class="video-card">
+            <h3>Video 2</h3>
+            <video id="video2" controls preload="metadata">
+                <source src="/videos/Vid2.mp4" type="video/mp4">
+                Your browser does not support the video tag.
+            </video>
+            <div id="status2" class="status paused">Status: Paused</div>
+        </div>
+
+        <div class="video-card">
+            <h3>Video 3</h3>
+            <video id="video3" controls preload="metadata">
+                <source src="/videos/Vid3.mp4" type="video/mp4">
+                Your browser does not support the video tag.
+            </video>
+            <div id="status3" class="status paused">Status: Paused</div>
+        </div>
+
+        <div class="video-card">
+            <h3>Video 4</h3>
+            <video id="video4" controls preload="metadata">
+                <source src="/videos/Vid4.mp4" type="video/mp4">
+                Your browser does not support the video tag.
+            </video>
+            <div id="status4" class="status paused">Status: Paused</div>
+        </div>
+    </div>
+
+    <script>
+        // Simple single video playback implementation for testing
+        let currentPlayingVideo = null;
+        const videos = document.querySelectorAll('video');
+        
+        videos.forEach((video, index) => {
+            const videoId = video.id;
+            const statusElement = document.getElementById(`status${index + 1}`);
+            
+            video.addEventListener('play', () => {
+                // Pause all other videos when this one starts playing
+                if (currentPlayingVideo && currentPlayingVideo !== video) {
+                    currentPlayingVideo.pause();
+                }
+                currentPlayingVideo = video;
+                
+                // Update status
+                statusElement.textContent = 'Status: Playing';
+                statusElement.className = 'status playing';
+                
+                console.log(`${videoId} started playing`);
+            });
+            
+            video.addEventListener('pause', () => {
+                if (currentPlayingVideo === video) {
+                    currentPlayingVideo = null;
+                }
+                
+                // Update status
+                statusElement.textContent = 'Status: Paused';
+                statusElement.className = 'status paused';
+                
+                console.log(`${videoId} paused`);
+            });
+            
+            video.addEventListener('ended', () => {
+                if (currentPlayingVideo === video) {
+                    currentPlayingVideo = null;
+                }
+                
+                // Update status
+                statusElement.textContent = 'Status: Ended';
+                statusElement.className = 'status paused';
+                
+                console.log(`${videoId} ended`);
+            });
+        });
+        
+        console.log('Single video playback test initialized');
+        console.log('Try playing multiple videos to test the functionality');
+    </script>
+</body>
+</html>

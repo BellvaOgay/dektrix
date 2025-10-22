@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Navbar from "../components/Navbar";
 import { Play, Clock, User, Lock, Coins } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -6,6 +6,7 @@ import { cn, getPerViewChargeDisplay } from "@/lib/utils";
 import { getVideos } from "@/api/videos";
 import { deductCreditOnPlay } from "@/api/videos";
 import { useBaseWallet } from "@/hooks/useBaseWallet";
+import { useVideoPlayer } from "@/contexts/VideoPlayerContext";
 
 const GenericVideos = () => {
   const [videos, setVideos] = useState<any[]>([]);
@@ -13,7 +14,9 @@ const GenericVideos = () => {
   const [isHovered, setIsHovered] = useState<string | null>(null);
   const [deductedVideos, setDeductedVideos] = useState<Set<string>>(new Set());
   
+  const videoRefsMap = useRef<Map<string, HTMLVideoElement>>(new Map());
   const { user: walletUser } = useBaseWallet();
+  const { currentPlayingVideo, setCurrentPlayingVideo, registerVideo, unregisterVideo } = useVideoPlayer();
 
   useEffect(() => {
     fetchGenericVideos();
@@ -38,6 +41,9 @@ const GenericVideos = () => {
 
   // Handle credit deduction when video starts playing
   const handleVideoPlay = async (videoId: string) => {
+    // Set this video as the currently playing video
+    setCurrentPlayingVideo(videoId);
+    
     if (!walletUser?.walletAddress || !videoId || deductedVideos.has(videoId)) {
       return;
     }
@@ -51,13 +57,32 @@ const GenericVideos = () => {
       } else {
         console.error('Failed to deduct credit:', result.error);
         // If credit deduction fails, pause the video
-        const videoElement = document.querySelector(`video[data-video-id="${videoId}"]`) as HTMLVideoElement;
+        const videoElement = videoRefsMap.current.get(videoId);
         if (videoElement) {
           videoElement.pause();
         }
       }
     } catch (error) {
       console.error('Error during credit deduction:', error);
+    }
+  };
+
+  // Handle video pause event
+  const handleVideoPause = (videoId: string) => {
+    // Clear the currently playing video if this video is paused
+    if (videoId && currentPlayingVideo === videoId) {
+      setCurrentPlayingVideo(null);
+    }
+  };
+
+  // Register video element with the global player context
+  const handleVideoRef = (videoId: string, videoElement: HTMLVideoElement | null) => {
+    if (videoElement) {
+      videoRefsMap.current.set(videoId, videoElement);
+      registerVideo(videoId, videoElement);
+    } else {
+      videoRefsMap.current.delete(videoId);
+      unregisterVideo(videoId);
     }
   };
 
@@ -120,6 +145,7 @@ const GenericVideos = () => {
                     {/* Check if user has credits to watch videos */}
                     {walletUser && walletUser.viewCredits > 0 ? (
                       <video
+                        ref={(el) => handleVideoRef(video._id, el)}
                         className="absolute inset-0 w-full h-full object-cover"
                         src={video.videoUrl}
                         controls
@@ -128,6 +154,7 @@ const GenericVideos = () => {
                         aria-label={`Video player for ${video.title}`}
                         data-video-id={video._id}
                         onPlay={() => handleVideoPlay(video._id)}
+                        onPause={() => handleVideoPause(video._id)}
                       />
                     ) : (
                       <>

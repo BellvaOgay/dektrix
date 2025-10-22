@@ -23,9 +23,9 @@ const Navbar = () => {
   const location = useLocation();
 
   // Debug logging
-  console.log('🔍 Navbar Debug:', { 
-    isConnected, 
-    address, 
+  console.log('🔍 Navbar Debug:', {
+    isConnected,
+    address,
     hasAddress: !!address,
     user: user ? {
       username: user.username,
@@ -39,7 +39,7 @@ const Navbar = () => {
     if (location.pathname === "/creator") return "creator";
     return "home";
   };
-  
+
   const currentTab = getCurrentTab();
 
   const handleTabChange = (value: string) => {
@@ -89,7 +89,7 @@ const Navbar = () => {
               <Brain className="w-8 h-8 text-primary animate-float" />
               <span className="text-2xl font-bold text-gradient">Dektrix</span>
             </div>
-            
+
             {/* Navigation Tabs */}
             <Tabs value={currentTab} onValueChange={handleTabChange} className="hidden md:block">
               <TabsList className="grid w-full grid-cols-3">
@@ -109,7 +109,7 @@ const Navbar = () => {
               </TabsList>
             </Tabs>
           </div>
-          
+
           <div className="flex items-center gap-3">
             {/* Wallet Info Display */}
             {isConnected && user && (
@@ -123,7 +123,7 @@ const Navbar = () => {
                 </div>
               </div>
             )}
-            
+
             {/* Debug info - Enhanced for troubleshooting */}
             <div className="text-xs text-gray-400 mr-2 border border-gray-600 px-2 py-1 rounded">
               <div>Connected: {isConnected ? 'Yes' : 'No'}</div>
@@ -136,21 +136,21 @@ const Navbar = () => {
                 </div>
               )}
               {isConnected && address && !user && (
-                 <div className="text-red-400">
-                   <div>⚠️ Connected but no user data!</div>
-                   <button 
-                     onClick={() => {
-                       console.log('Refreshing user data...');
-                       refreshUser();
-                     }}
-                     className="text-blue-400 underline text-xs hover:text-blue-300"
-                   >
-                     Refresh User
-                   </button>
-                 </div>
-               )}
+                <div className="text-red-400">
+                  <div>⚠️ Connected but no user data!</div>
+                  <button
+                    onClick={() => {
+                      console.log('Refreshing user data...');
+                      refreshUser();
+                    }}
+                    className="text-blue-400 underline text-xs hover:text-blue-300"
+                  >
+                    Refresh User
+                  </button>
+                </div>
+              )}
             </div>
-            
+
             {isConnected && address ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -198,9 +198,9 @@ const Navbar = () => {
         </div>
       </nav>
 
-      <WalletConnectModal 
-        isOpen={isWalletModalOpen} 
-        onClose={() => setIsWalletModalOpen(false)} 
+      <WalletConnectModal
+        isOpen={isWalletModalOpen}
+        onClose={() => setIsWalletModalOpen(false)}
       />
     </>
   );

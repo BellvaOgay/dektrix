@@ -1,8 +1,36 @@
+import { useRef, useEffect } from "react";
 import Navbar from "@/components/Navbar";
+import { useVideoPlayer } from "@/contexts/VideoPlayerContext";
 
 const PrivateVideo = () => {
   const isDev = import.meta.env.DEV;
   const videoSrc = "/api/private-videos/vid%203.MOV"; // URL-encoded space
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const { setCurrentPlayingVideo } = useVideoPlayer();
+  const videoId = "private-video-vid3";
+
+  useEffect(() => {
+    if (videoRef.current) {
+      // Register this video with the global player context
+      const videoElement = videoRef.current;
+      
+      const handlePlay = () => {
+        setCurrentPlayingVideo(videoId);
+      };
+
+      const handlePause = () => {
+        setCurrentPlayingVideo(null);
+      };
+
+      videoElement.addEventListener('play', handlePlay);
+      videoElement.addEventListener('pause', handlePause);
+
+      return () => {
+        videoElement.removeEventListener('play', handlePlay);
+        videoElement.removeEventListener('pause', handlePause);
+      };
+    }
+  }, [setCurrentPlayingVideo, videoId]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -22,6 +50,7 @@ const PrivateVideo = () => {
 
         <div className="max-w-3xl">
           <video
+            ref={videoRef}
             controls
             preload="metadata"
             className="w-full rounded border"

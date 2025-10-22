@@ -38,7 +38,7 @@ const userSchema = new mongoose.Schema({
   videosUnlocked: [{ type: String }],
   videosTipped: [{ type: String }],
   favoriteCategories: [{ type: String }],
-  viewCredits: { type: Number, default: 10 },
+  viewCredits: { type: Number, default: 1 },
   userContainer: {
     purchasedVideos: [{ type: String }],
     uploadedVideos: [{ type: String }],
@@ -155,7 +155,7 @@ app.post('/api/users/create', async (req, res) => {
         videosWatched: [],
         videosUnlocked: [],
         favoriteCategories: [],
-        viewCredits: 10, // Give new users 10 free credits to start
+        viewCredits: 1, // Give new users 1 free credit to start
         userContainer: {
           purchasedVideos: [],
           uploadedVideos: [],
@@ -552,6 +552,80 @@ app.get('/api/videos', async (req, res) => {
     res.status(500).json({ 
       error: 'Internal server error',
       message: process.env.NODE_ENV === 'development' ? error.message : 'Failed to fetch videos'
+    });
+  }
+});
+
+// Deduct credit when video starts playing
+app.post('/api/videos/deduct-credit', async (req, res) => {
+  try {
+    const { walletAddress, videoId } = req.body;
+
+    // Validate required fields
+    if (!walletAddress || !videoId) {
+      return res.status(400).json({ 
+        error: 'Missing required fields: walletAddress and videoId are required' 
+      });
+    }
+
+    // Find user
+    const user = await User.findOne({ walletAddress: walletAddress.toLowerCase() });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Check if user already watched this video
+    if (user.videosWatched && user.videosWatched.includes(videoId)) {
+      return res.status(400).json({ 
+        error: 'Video already watched',
+        remainingCredits: user.viewCredits
+      });
+    }
+
+    // Check if user has sufficient credits
+    if (user.viewCredits < 1) {
+      return res.status(400).json({ 
+        error: 'Insufficient view credits',
+        remainingCredits: 0
+      });
+    }
+
+    // Find video
+    const video = await Video.findById(videoId);
+    if (!video) {
+      return res.status(404).json({ error: 'Video not found' });
+    }
+
+    // Deduct one credit
+    user.viewCredits -= 1;
+    
+    // Add video to watched list
+    if (!user.videosWatched) {
+      user.videosWatched = [];
+    }
+    user.videosWatched.push(videoId);
+    
+    await user.save();
+
+    console.log(`✅ Credit deducted for user ${walletAddress} watching video ${video.title}`);
+
+    res.status(200).json({
+      success: true,
+      message: 'Credit deducted successfully',
+      remainingCredits: user.viewCredits,
+      transaction: {
+        type: 'credit_deduction',
+        videoId: videoId,
+        videoTitle: video.title,
+        timestamp: new Date()
+      }
+    });
+
+  } catch (error) {
+    console.error('Error deducting credit:', error);
+    res.status(500).json({ 
+      error: 'Internal server error',
+      message: process.env.NODE_ENV === 'development' ? error.message : 'Failed to deduct credit'
     });
   }
 });
