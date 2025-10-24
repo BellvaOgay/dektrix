@@ -630,6 +630,49 @@ app.post('/api/videos/deduct-credit', async (req, res) => {
   }
 });
 
+// Increment video view count
+app.post('/api/videos/:videoId/view', async (req, res) => {
+  try {
+    const { videoId } = req.params;
+
+    // Validate video ID
+    if (!videoId) {
+      return res.status(400).json({ 
+        error: 'Video ID is required' 
+      });
+    }
+
+    // Find and update video
+    const video = await Video.findById(videoId);
+    if (!video) {
+      return res.status(404).json({ error: 'Video not found' });
+    }
+
+    // Increment view count
+    video.totalViews += 1;
+    await video.save();
+
+    console.log(`✅ View count incremented for video: ${video.title} (Total views: ${video.totalViews})`);
+
+    res.status(200).json({
+      success: true,
+      message: 'View count incremented successfully',
+      data: {
+        videoId: video._id,
+        title: video.title,
+        totalViews: video.totalViews
+      }
+    });
+
+  } catch (error) {
+    console.error('Error incrementing video view:', error);
+    res.status(500).json({ 
+      error: 'Internal server error',
+      message: process.env.NODE_ENV === 'development' ? error.message : 'Failed to increment view count'
+    });
+  }
+});
+
 // Transaction API Routes
 
 // Process tip transaction

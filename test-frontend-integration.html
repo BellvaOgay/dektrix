@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -13,12 +14,14 @@
             background: #1a1a1a;
             color: white;
         }
+
         .test-section {
             background: #2a2a2a;
             padding: 20px;
             margin: 20px 0;
             border-radius: 8px;
         }
+
         button {
             background: #007bff;
             color: white;
@@ -28,9 +31,11 @@
             cursor: pointer;
             margin: 5px;
         }
+
         button:hover {
             background: #0056b3;
         }
+
         .result {
             background: #333;
             padding: 10px;
@@ -38,32 +43,37 @@
             border-radius: 4px;
             white-space: pre-wrap;
         }
+
         .error {
             background: #d32f2f;
             color: white;
         }
+
         .success {
             background: #388e3c;
             color: white;
         }
     </style>
 </head>
+
 <body>
     <h1>Frontend Credit Deduction Test</h1>
-    
+
     <div class="test-section">
         <h2>Test Credit Deduction API</h2>
         <p>This will test the credit deduction endpoint directly from the browser.</p>
-        
+
         <label for="walletAddress">Wallet Address:</label>
-        <input type="text" id="walletAddress" value="0x50d2c99358c9d3671869b75ceee269f2f393e179" style="width: 100%; padding: 8px; margin: 10px 0;">
-        
+        <input type="text" id="walletAddress" value="0x50d2c99358c9d3671869b75ceee269f2f393e179"
+            style="width: 100%; padding: 8px; margin: 10px 0;">
+
         <label for="videoId">Video ID:</label>
-        <input type="text" id="videoId" value="68f7d390ea6d55d66587878c" style="width: 100%; padding: 8px; margin: 10px 0;">
-        
+        <input type="text" id="videoId" value="68f7d390ea6d55d66587878c"
+            style="width: 100%; padding: 8px; margin: 10px 0;">
+
         <button onclick="testCreditDeduction()">Test Credit Deduction</button>
         <button onclick="checkUserCredits()">Check User Credits</button>
-        
+
         <div id="result" class="result"></div>
     </div>
 
@@ -78,10 +88,10 @@
             const walletAddress = document.getElementById('walletAddress').value;
             const videoId = document.getElementById('videoId').value;
             const resultDiv = document.getElementById('result');
-            
+
             try {
                 console.log('Testing credit deduction with:', { walletAddress, videoId });
-                
+
                 const response = await fetch('/api/videos/deduct-credit', {
                     method: 'POST',
                     headers: {
@@ -94,9 +104,9 @@
                 });
 
                 const data = await response.json();
-                
+
                 console.log('Response:', { status: response.status, data });
-                
+
                 if (response.ok) {
                     resultDiv.className = 'result success';
                     resultDiv.textContent = `✅ Success!\nStatus: ${response.status}\nResponse: ${JSON.stringify(data, null, 2)}`;
@@ -114,15 +124,15 @@
         async function checkUserCredits() {
             const walletAddress = document.getElementById('walletAddress').value;
             const resultDiv = document.getElementById('result');
-            
+
             try {
                 console.log('Checking user credits for:', walletAddress);
-                
+
                 const response = await fetch(`/api/users/${walletAddress}`);
                 const data = await response.json();
-                
+
                 console.log('User data:', data);
-                
+
                 if (response.ok) {
                     resultDiv.className = 'result success';
                     resultDiv.textContent = `✅ User Data!\nCredits: ${data.viewCredits}\nVideos Watched: ${data.videosWatched?.length || 0}\nWallet: ${data.walletAddress}`;
@@ -149,4 +159,5 @@
         console.log('Current URL:', window.location.href);
     </script>
 </body>
+
 </html>

@@ -6,6 +6,7 @@ interface VideoPlayerContextType {
   pauseAllVideos: () => void;
   registerVideo: (videoId: string, videoElement: HTMLVideoElement) => void;
   unregisterVideo: (videoId: string) => void;
+  incrementVideoView: (videoId: string) => Promise<void>;
 }
 
 const VideoPlayerContext = createContext<VideoPlayerContextType | undefined>(undefined);
@@ -17,6 +18,7 @@ interface VideoPlayerProviderProps {
 export const VideoPlayerProvider: React.FC<VideoPlayerProviderProps> = ({ children }) => {
   const [currentPlayingVideo, setCurrentPlayingVideo] = useState<string | null>(null);
   const videoElementsRef = useRef<Map<string, HTMLVideoElement>>(new Map());
+  const viewedVideosRef = useRef<Set<string>>(new Set());
 
   const pauseAllVideos = () => {
     videoElementsRef.current.forEach((videoElement) => {
@@ -38,6 +40,31 @@ export const VideoPlayerProvider: React.FC<VideoPlayerProviderProps> = ({ childr
     }
   };
 
+  const incrementVideoView = async (videoId: string) => {
+    // Only count each video view once per session
+    if (viewedVideosRef.current.has(videoId)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/videos/${videoId}/view`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        viewedVideosRef.current.add(videoId);
+        console.log(`✅ View count incremented for video: ${videoId}`);
+      } else {
+        console.error('Failed to increment view count:', await response.text());
+      }
+    } catch (error) {
+      console.error('Error incrementing view count:', error);
+    }
+  };
+
   const handleSetCurrentPlayingVideo = (videoId: string | null) => {
     if (videoId && videoId !== currentPlayingVideo) {
       // Pause all other videos when a new one starts playing
@@ -46,6 +73,9 @@ export const VideoPlayerProvider: React.FC<VideoPlayerProviderProps> = ({ childr
           videoElement.pause();
         }
       });
+      
+      // Increment view count when video starts playing
+      incrementVideoView(videoId);
     }
     setCurrentPlayingVideo(videoId);
   };
@@ -56,6 +86,7 @@ export const VideoPlayerProvider: React.FC<VideoPlayerProviderProps> = ({ childr
     pauseAllVideos,
     registerVideo,
     unregisterVideo,
+    incrementVideoView,
   };
 
   return (

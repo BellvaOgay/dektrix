@@ -11,13 +11,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import WalletConnectModal from "./WalletConnectModal";
-import { useBaseWallet } from "@/hooks/useBaseWallet";
+import { useBaseWalletContext } from "@/providers/BaseWalletProvider";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 
 const Navbar = () => {
   const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
-  const { isConnected, address, user, disconnect, refreshUser } = useBaseWallet();
+  const { isConnected, address, user, disconnect, refreshUser } = useBaseWalletContext();
   const { toast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Wallet, Loader2, ExternalLink } from 'lucide-react';
-import { useBaseWallet } from '@/hooks/useBaseWallet';
+import { useBaseWalletContext } from '@/providers/BaseWalletProvider';
 import { useToast } from '@/hooks/use-toast';
 
 interface WalletConnectModalProps {
@@ -11,7 +11,7 @@ interface WalletConnectModalProps {
 }
 
 const WalletConnectModal: React.FC<WalletConnectModalProps> = ({ isOpen, onClose }) => {
-  const { connect, isConnecting, error, isConnected, address, switchToBase } = useBaseWallet();
+  const { connect, isConnecting, error, isConnected, address, switchToBase } = useBaseWalletContext();
   const { toast } = useToast();
   const [isConnectingBase, setIsConnectingBase] = useState(false);
 

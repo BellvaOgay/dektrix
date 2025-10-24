@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Play, Lock, Zap } from "lucide-react";
+import { Play, Lock, Zap, Eye } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { calculateBasePayPrice, isBasePayEnabled } from "@/lib/utils";
 import { deductCreditOnPlay } from "@/api/videos";
@@ -21,6 +21,7 @@ interface VideoCardProps {
   onUnlock?: (paymentMethod: 'crypto' | 'basepay') => void;
   videoId?: string; // Video ID for credit deduction
   onCreditUpdate?: (remainingCredits: number) => void; // Callback for credit updates
+  totalViews?: number; // Total view count for the video
 }
 
 const VideoCard = ({
@@ -37,12 +38,13 @@ const VideoCard = ({
   isFree = true,
   onUnlock,
   videoId,
-  onCreditUpdate
+  onCreditUpdate,
+  totalViews = 0
 }: VideoCardProps) => {
   const [isHovered, setIsHovered] = useState(false);
   const [showPaymentOptions, setShowPaymentOptions] = useState(false);
   const [hasDeductedCredit, setHasDeductedCredit] = useState(false);
-  
+
   const videoRef = useRef<HTMLVideoElement>(null);
   const { user: walletUser } = useBaseWallet();
   const { currentPlayingVideo, setCurrentPlayingVideo, registerVideo, unregisterVideo } = useVideoPlayer();
@@ -54,7 +56,7 @@ const VideoCard = ({
   useEffect(() => {
     if (videoRef.current && videoId) {
       registerVideo(videoId, videoRef.current);
-      
+
       return () => {
         unregisterVideo(videoId);
       };
@@ -303,6 +305,14 @@ const VideoCard = ({
         <h3 className="text-sm font-bold line-clamp-2">{title}</h3>
         {description && (
           <p className="text-xs text-muted-foreground line-clamp-2" aria-label={`Description for ${title}`}>{description}</p>
+        )}
+
+        {/* View Count Display */}
+        {totalViews > 0 && (
+          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+            <Eye className="w-3 h-3" />
+            <span>{totalViews.toLocaleString()} {totalViews === 1 ? 'view' : 'views'}</span>
+          </div>
         )}
 
 

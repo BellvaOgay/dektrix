@@ -383,6 +383,7 @@ const VideoFeed = () => {
                 isLocked={isVideoLocked}
                 isFree={video.isFree || false}
                 videoId={id}
+                totalViews={video.totalViews || 0}
                 onCreditUpdate={handleCreditUpdate}
                 onUnlock={(paymentMethod) => handleVideoUnlock(id, paymentMethod)}
                 onClick={async () => {
