@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modal Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .video-card { border: 1px solid #ccc; padding: 20px; margin: 10px 0; cursor: pointer; }
+        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: none; justify-content: center; align-items: center; z-index: 1000; }
+        .modal-content { background: white; padding: 20px; border-radius: 8px; max-width: 80%; }
+        .modal.show { display: flex; }
+        .log { background: #f0f0f0; padding: 10px; margin: 10px 0; font-family: monospace; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <h1>Modal Functionality Test</h1>
+    <div id="log-container"></div>
+    
+    <div class="video-card" data-video-id="test1" onclick="handleVideoClick('test1')">
+        <h3>Test Video 1</h3>
+        <p>Click to open modal</p>
+    </div>
+    
+    <div class="video-card" data-video-id="test2" onclick="handleVideoClick('test2')">
+        <h3>Test Video 2</h3>
+        <p>Click to open modal</p>
+    </div>
+
+    <div id="modal" class="modal" onclick="closeModal(event)">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <h3>Video Modal</h3>
+            <p id="modal-content">Modal content here</p>
+            <button onclick="closeModal()">Close</button>
+        </div>
+    </div>
+
+    <script>
+        function log(message) {
+            const logContainer = document.getElementById('log-container');
+            const logEntry = document.createElement('div');
+            logEntry.className = 'log';
+            logEntry.textContent = new Date().toLocaleTimeString() + ' - ' + message;
+            logContainer.appendChild(logEntry);
+            console.log(message);
+        }
+
+        function handleVideoClick(videoId) {
+            log('Video clicked: ' + videoId);
+            log('Opening modal...');
+            
+            const modal = document.getElementById('modal');
+            const modalContent = document.getElementById('modal-content');
+            
+            modalContent.textContent = 'Playing video: ' + videoId;
+            modal.classList.add('show');
+            
+            log('Modal opened for: ' + videoId);
+        }
+
+        function closeModal(event) {
+            if (event && event.target !== event.currentTarget) return;
+            
+            log('Closing modal...');
+            const modal = document.getElementById('modal');
+            modal.classList.remove('show');
+            log('Modal closed');
+        }
+
+        // Test button
+        const testButton = document.createElement('button');
+        testButton.textContent = 'Test Modal via JS';
+        testButton.onclick = () => {
+            log('Test button clicked - simulating programmatic modal open');
+            handleVideoClick('programmatic');
+        };
+        document.body.appendChild(testButton);
+
+        log('Modal test page loaded and ready');
+    </script>
+</body>
+</html>

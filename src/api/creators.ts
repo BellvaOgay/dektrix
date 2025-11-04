@@ -45,12 +45,14 @@ export interface CreatorsResponse {
 export async function getCreators(page: number = 1, limit: number = 20): Promise<CreatorsResponse> {
   try {
     const response = await fetch(`${API_BASE_URL}/api/creators?page=${page}&limit=${limit}`);
-    
+    const json = await response.json();
     if (!response.ok) {
-      throw new Error(`Failed to fetch creators: ${response.statusText}`);
+      throw new Error(json?.error || `Failed to fetch creators: ${response.statusText}`);
     }
-    
-    return await response.json();
+    // Normalize list response shape
+    const creators = (json?.data as ICreator[]) || (json?.creators as ICreator[]) || [];
+    const pagination = json?.pagination;
+    return { creators, pagination };
   } catch (error) {
     console.error('Error fetching creators:', error);
     throw error;
@@ -75,36 +77,52 @@ export async function getTopEarners(limit: number = 10): Promise<CreatorsRespons
 
 // Get creator by wallet address
 export async function getCreatorByWallet(walletAddress: string): Promise<CreatorResponse> {
+  const urlQuery = `${API_BASE_URL}/api/creators?wallet_address=${walletAddress}`;
+  const urlPath = `${API_BASE_URL}/api/creators/${walletAddress}`; // fallback for local server.cjs
+
+  // Try query-param route first (Vercel serverless)
   try {
-    const response = await fetch(`${API_BASE_URL}/api/creators/${walletAddress}`);
-    
-    if (!response.ok) {
-      if (response.status === 404) {
-        throw new Error('Creator not found');
-      }
-      throw new Error(`Failed to fetch creator: ${response.statusText}`);
+    const response = await fetch(urlQuery);
+    const json = await response.json();
+    if (response.ok) {
+      const creator = (json?.data as ICreator) || (json?.creator as ICreator) || (json as ICreator);
+      return { creator };
     }
-    
-    return await response.json();
-  } catch (error) {
-    console.error('Error fetching creator by wallet:', error);
-    throw error;
+    // Explicit 404 from API
+    if (response.status === 404) {
+      throw new Error(json?.error || 'Creator not found');
+    }
+    // If route not found or other error, fall through to path fallback
+  } catch (err) {
+    // Continue to fallback
   }
+
+  // Fallback: path-parameter route (local Express server)
+  const resp2 = await fetch(urlPath);
+  const json2 = await resp2.json().catch(() => ({}));
+  if (resp2.ok) {
+    const creator = (json2?.data as ICreator) || (json2?.creator as ICreator) || (json2 as ICreator);
+    return { creator };
+  }
+  if (resp2.status === 404) {
+    throw new Error(json2?.error || 'Creator not found');
+  }
+  throw new Error(json2?.error || `Failed to fetch creator: ${resp2.statusText}`);
 }
 
 // Get creator by username
 export async function getCreatorByUsername(username: string): Promise<CreatorResponse> {
   try {
     const response = await fetch(`${API_BASE_URL}/api/creators?username=${username}`);
-    
+    const json = await response.json();
     if (!response.ok) {
       if (response.status === 404) {
-        throw new Error('Creator not found');
+        throw new Error(json?.error || 'Creator not found');
       }
-      throw new Error(`Failed to fetch creator: ${response.statusText}`);
+      throw new Error(json?.error || `Failed to fetch creator: ${response.statusText}`);
     }
-    
-    return await response.json();
+    const creator = (json?.data as ICreator) || (json?.creator as ICreator) || (json as ICreator);
+    return { creator };
   } catch (error) {
     console.error('Error fetching creator by username:', error);
     throw error;
@@ -121,13 +139,12 @@ export async function createCreator(creatorData: CreateCreatorData): Promise<Cre
       },
       body: JSON.stringify(creatorData),
     });
-    
+    const json = await response.json();
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || `Failed to create creator: ${response.statusText}`);
+      throw new Error(json?.error || `Failed to create creator: ${response.statusText}`);
     }
-    
-    return await response.json();
+    const creator = (json?.data as ICreator) || (json?.creator as ICreator) || (json as ICreator);
+    return { creator };
   } catch (error) {
     console.error('Error creating creator:', error);
     throw error;
@@ -144,13 +161,12 @@ export async function updateCreator(walletAddress: string, updateData: UpdateCre
       },
       body: JSON.stringify(updateData),
     });
-    
+    const json = await response.json();
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || `Failed to update creator: ${response.statusText}`);
+      throw new Error(json?.error || `Failed to update creator: ${response.statusText}`);
     }
-    
-    return await response.json();
+    const creator = (json?.data as ICreator) || (json?.creator as ICreator) || (json as ICreator);
+    return { creator };
   } catch (error) {
     console.error('Error updating creator:', error);
     throw error;

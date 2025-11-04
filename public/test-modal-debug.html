@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Modal Debug Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .console { background: #f0f0f0; padding: 10px; margin-top: 20px; border: 1px solid #ccc; }
+        .log { margin: 5px 0; font-family: monospace; }
+        .error { color: red; }
+        .warn { color: orange; }
+        .info { color: blue; }
+    </style>
+</head>
+<body>
+    <h1>Modal Button Debug Test</h1>
+    <p>Open the main app in another tab and click the "View in Modal" button, then check this page for console output.</p>
+    
+    <div class="console" id="console">
+        <div>Waiting for console messages...</div>
+    </div>
+
+    <script>
+        const consoleDiv = document.getElementById('console');
+        
+        // Override console methods to capture logs
+        const originalLog = console.log;
+        const originalError = console.error;
+        const originalWarn = console.warn;
+        
+        function addLog(message, type = 'info') {
+            const logDiv = document.createElement('div');
+            logDiv.className = `log ${type}`;
+            logDiv.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            consoleDiv.appendChild(logDiv);
+            consoleDiv.scrollTop = consoleDiv.scrollHeight;
+        }
+        
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            addLog(args.join(' '), 'info');
+        };
+        
+        console.error = function(...args) {
+            originalError.apply(console, args);
+            addLog(args.join(' '), 'error');
+        };
+        
+        console.warn = function(...args) {
+            originalWarn.apply(console, args);
+            addLog(args.join(' '), 'warn');
+        };
+        
+        addLog('Console capture initialized. Check the main app for modal button clicks.', 'info');
+    </script>
+</body>
+</html>

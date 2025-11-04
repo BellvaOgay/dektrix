@@ -18,21 +18,28 @@ export const usePortraitFullscreen = (): UsePortraitFullscreenReturn => {
 
   const enterPortraitFullscreen = useCallback((videoElement: HTMLVideoElement) => {
     if (!videoElement || isPortraitFullscreen) return;
-
-    // Check if it's a portrait video
-    if (!isPortraitVideo(videoElement)) {
-      // For landscape videos, use native fullscreen
-      if (videoElement.requestFullscreen) {
-        videoElement.requestFullscreen();
-      }
-      return;
-    }
-
-    // Create custom fullscreen container for portrait videos
+    
+    // Create custom fullscreen container (always use custom to maintain 9:16 framing)
     const container = document.createElement('div');
     container.className = 'portrait-fullscreen-container';
     container.setAttribute('role', 'dialog');
     container.setAttribute('aria-label', 'Video fullscreen player');
+    container.setAttribute('tabindex', '-1');
+    
+    // Try to enter real fullscreen and lock orientation to portrait
+    // This may fail on some browsers; we gracefully continue with overlay CSS.
+    (async () => {
+      try {
+        if (container.requestFullscreen) {
+          await container.requestFullscreen();
+          if ((screen as any).orientation && typeof (screen as any).orientation.lock === 'function') {
+            try {
+              await (screen as any).orientation.lock('portrait');
+            } catch {}
+          }
+        }
+      } catch {}
+    })();
     
     // Create exit button
     const exitButton = document.createElement('button');
@@ -95,7 +102,41 @@ export const usePortraitFullscreen = (): UsePortraitFullscreenReturn => {
     clonedVideo.volume = videoElement.volume;
     clonedVideo.muted = videoElement.muted;
     clonedVideo.setAttribute('aria-label', 'Fullscreen video player');
-    
+
+    // Ensure vertical playback framing and avoid horizontal stretching
+    clonedVideo.style.maxHeight = '100vh';
+    clonedVideo.style.maxWidth = '100vw';
+    clonedVideo.style.width = 'auto';
+    clonedVideo.style.height = 'auto';
+    clonedVideo.style.objectFit = 'contain';
+    clonedVideo.style.transformOrigin = 'center center';
+    clonedVideo.style.willChange = 'transform';
+
+    // Apply rotation for landscape videos to keep playback vertical
+    const applyOrientationTransform = () => {
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const w = clonedVideo.videoWidth;
+      const h = clonedVideo.videoHeight;
+
+      if (!w || !h) return; // metadata not ready
+
+      // If landscape, rotate 90deg and scale to fit within viewport
+      if (w > h) {
+        // After rotation, width -> h, height -> w
+        const scale = Math.min(vw / h, vh / w);
+        clonedVideo.style.transform = `rotate(90deg) scale(${scale})`;
+      } else {
+        // Portrait, no rotation; ensure it fits using object-fit
+        clonedVideo.style.transform = 'none';
+      }
+    };
+
+    // Recompute transform on resize
+    const handleResize = () => applyOrientationTransform();
+    window.addEventListener('resize', handleResize);
+    (container as any).portraitResizeHandler = handleResize;
+
     // Sync playback state
     if (!videoElement.paused) {
       clonedVideo.play();
@@ -141,7 +182,6 @@ export const usePortraitFullscreen = (): UsePortraitFullscreenReturn => {
     
     // Focus the container for keyboard navigation
     container.focus();
-    container.setAttribute('tabindex', '-1');
     
     // Handle keyboard events
     const handleKeyPress = (e: KeyboardEvent) => {
@@ -168,6 +208,13 @@ export const usePortraitFullscreen = (): UsePortraitFullscreenReturn => {
     
     clonedVideo.addEventListener('play', updatePlayButton);
     clonedVideo.addEventListener('pause', updatePlayButton);
+
+    // Apply transform once metadata is available
+    if (clonedVideo.readyState >= 1) {
+      applyOrientationTransform();
+    } else {
+      clonedVideo.addEventListener('loadedmetadata', applyOrientationTransform, { once: true });
+    }
     
     // Sync back to original video when exiting
     const syncBackToOriginal = () => {
@@ -196,6 +243,11 @@ export const usePortraitFullscreen = (): UsePortraitFullscreenReturn => {
       }
     };
     document.removeEventListener('keydown', handleKeyPress);
+
+    // Remove resize handler if attached
+    if ((fullscreenContainer as any).portraitResizeHandler) {
+      window.removeEventListener('resize', (fullscreenContainer as any).portraitResizeHandler);
+    }
     
     // Remove container
     document.body.removeChild(fullscreenContainer);

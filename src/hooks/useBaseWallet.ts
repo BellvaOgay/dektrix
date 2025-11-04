@@ -54,27 +54,68 @@ const checkIndexedDBSupport = (): boolean => {
   }
 };
 
-// Suppress IndexedDB errors globally for Base Account SDK
+// Suppress IndexedDB/Analytics noise in console and global events
 const suppressIndexedDBErrors = () => {
-  if (typeof window !== 'undefined') {
-    const originalError = window.console.error;
-    window.console.error = (...args) => {
-      const message = args.join(' ');
-      // Suppress specific IndexedDB and Analytics SDK errors
-      if (
-        message.includes('IndexedDB:Get:InternalError') ||
-        message.includes('Analytics SDK: Error') ||
-        message.includes('Internal error when calculating storage usage') ||
-        message.includes('checkCrossOriginOpenerPolicy') ||
-        message.includes('Video load error') ||
-        message.includes('net::ERR_ABORTED')
-      ) {
-        // Silently suppress these errors to reduce console spam
-        return;
-      }
-      originalError.apply(console, args);
-    };
-  }
+  if (typeof window === 'undefined') return;
+
+  const originalError = window.console.error.bind(console);
+
+  const shouldSuppress = (args: unknown[]): boolean => {
+    try {
+      const text = args
+        .map((a: any) => {
+          if (typeof a === 'string') return a;
+          if (a instanceof Error) return a.message || '';
+          if (typeof a === 'object') {
+            try { return JSON.stringify(a); } catch { return ''; }
+          }
+          return '';
+        })
+        .join(' ');
+      return [
+        'IndexedDB:Get:InternalError',
+        'Internal error when calculating storage usage',
+        'Analytics SDK',
+        'cca-lite.coinbase.com',
+        'checkCrossOriginOpenerPolicy',
+        'net::ERR_ABORTED',
+        'net::ERR_NAME_NOT_RESOLVED',
+        'net::ERR_NETWORK_IO_SUSPENDED'
+      ].some((sig) => text.includes(sig));
+    } catch {
+      return false;
+    }
+  };
+
+  window.console.error = (...args: any[]) => {
+    if (shouldSuppress(args)) return;
+    originalError(...args);
+  };
+
+  // Suppress global error noise
+  window.addEventListener('error', (e: ErrorEvent) => {
+    const msg = e.message || e.error?.message || '';
+    if (
+      msg.includes('IndexedDB') ||
+      msg.includes('Analytics SDK') ||
+      msg.includes('checkCrossOriginOpenerPolicy') ||
+      msg.includes('net::ERR_ABORTED')
+    ) {
+      e.preventDefault();
+    }
+  });
+
+  window.addEventListener('unhandledrejection', (e: PromiseRejectionEvent) => {
+    const reason: any = e.reason;
+    const text = typeof reason === 'string' ? reason : (reason?.message || '');
+    if (
+      text.includes('IndexedDB') ||
+      text.includes('Analytics SDK') ||
+      text.includes('cca-lite.coinbase.com')
+    ) {
+      e.preventDefault();
+    }
+  });
 };
 
 export const useBaseWallet = (): UseBaseWalletReturn => {
@@ -124,11 +165,24 @@ export const useBaseWallet = (): UseBaseWalletReturn => {
   }, []);
 
   // Initialize Base Account SDK with proper error handling
-  const initializeSDK = useCallback(async () => {
+  const initializeSDK = useCallback(async (): Promise<any> => {
     if (sdkInitialized) return;
 
     try {
       logger.log('🔧 Initializing Base Account SDK...');
+
+      // Guard against insecure/non-COI contexts (avoid noisy SDK checks in dev/preview)
+      if (typeof window !== 'undefined') {
+        const isSecure = window.isSecureContext === true;
+        const isCOI = (window as any).crossOriginIsolated === true;
+        const enableEnv = (import.meta.env?.VITE_ENABLE_WALLET || '').toLowerCase() === 'true';
+        const isProd = import.meta.env?.PROD === true;
+        if (!(enableEnv || (isProd && isSecure && isCOI))) {
+          logger.warn('🔇 Wallet SDK disabled: insecure/dev context (secure/coi not satisfied).');
+          setSdkInitialized(false);
+          return undefined;
+        }
+      }
 
       // Check IndexedDB support
       const hasIndexedDB = checkIndexedDBSupport();
@@ -163,12 +217,22 @@ export const useBaseWallet = (): UseBaseWalletReturn => {
       setProvider(walletProvider);
       setSdkInitialized(true);
       logger.log('✅ Base Account SDK initialized successfully');
+      return walletProvider;
 
     } catch (error: any) {
-      logger.error('❌ Error initializing Base Account SDK:', error);
+      // Suppress expected COOP/COEP probe errors
+      if (
+        error instanceof Error &&
+        (error.message.includes('COOP') || error.message.includes('Cross-Origin-Opener-Policy') || error.message.includes('net::ERR_ABORTED'))
+      ) {
+        logger.warn('🔇 COOP/COEP check failed (expected in dev).');
+      } else {
+        logger.error('❌ Error initializing Base Account SDK:', error);
+      }
       // Don't set this as a critical error - the app should still work without wallet
       logger.log('🔄 App will continue without wallet functionality');
       setSdkInitialized(false);
+      return undefined;
     }
   }, [sdkInitialized]);
 
@@ -489,12 +553,16 @@ export const useBaseWallet = (): UseBaseWalletReturn => {
     console.log('🚀 Starting Base Account connection process...');
 
     if (!provider) {
-      console.error('❌ Wallet provider not initialized');
-      setWalletState(prev => ({
-        ...prev,
-        error: 'Wallet provider not initialized',
-      }));
-      return;
+      console.warn('⏳ Wallet provider not ready, attempting initialization...');
+      const newProvider = await initializeSDK();
+      if (!newProvider) {
+        console.error('❌ Wallet provider not initialized');
+        setWalletState(prev => ({
+          ...prev,
+          error: 'Wallet provider not initialized. Set VITE_ENABLE_WALLET=true in .env and restart the dev server.',
+        }));
+        return;
+      }
     }
 
     console.log('⏳ Setting connecting state...');
@@ -557,7 +625,7 @@ export const useBaseWallet = (): UseBaseWalletReturn => {
         error: error.message || 'Failed to connect Base Account',
       }));
     }
-  }, [provider, createOrGetUser, checkUserState]);
+  }, [provider, createOrGetUser, checkUserState, initializeSDK]);
 
   const disconnect = useCallback(async () => {
     console.log('🔌 Starting wallet disconnection...');
@@ -717,62 +785,73 @@ export const useBaseWallet = (): UseBaseWalletReturn => {
     }
   }, [provider]);
 
-  // Send gasless transaction using paymaster
+  // Send transaction (wallet handles fees). Includes network preflight check.
   const sendGaslessTransaction = useCallback(async (to: string, data: string, value: string = '0x0'): Promise<string> => {
-    console.log('💸 Sending gasless transaction...');
+    console.log('💸 Preparing transaction send...');
     if (!provider) {
       throw new Error('Wallet provider not initialized');
     }
 
-    if (!currentNetwork.paymaster) {
-      throw new Error(`No paymaster configured for ${currentNetwork.isTestnet ? 'testnet' : 'mainnet'}`);
-    }
-
     try {
+      // Ensure wallet is on expected chain
+      const chainIdHex = await provider.request({ method: 'eth_chainId' });
+      const expectedHex = `0x${currentNetwork.chainId.toString(16)}`;
+      if (chainIdHex !== expectedHex) {
+        console.warn('⚠️ Wrong network detected', { chainIdHex, expectedHex, currentNetwork });
+        try {
+          await provider.request({
+            method: 'wallet_switchEthereumChain',
+            params: [{ chainId: expectedHex }]
+          });
+          console.log('✅ Switched to expected network:', expectedHex);
+        } catch (switchErr: any) {
+          console.error('❌ Failed to switch network:', switchErr);
+          throw new Error(`Wrong network. Please switch to ${currentNetwork.name}.`);
+        }
+      }
+
       const accounts = await provider.request({ method: 'eth_accounts' });
       if (!accounts || accounts.length === 0) {
         throw new Error('No wallet accounts available');
       }
 
       const from = accounts[0];
-      console.log('📤 Preparing gasless transaction:', { from, to, data, value, paymaster: currentNetwork.paymaster });
+      console.log('📤 Building transaction:', { from, to, value });
 
-      // Get nonce
-      const nonce = await provider.request({
-        method: 'eth_getTransactionCount',
-        params: [from, 'pending']
-      });
-
-      // Estimate gas
+      // Estimate gas; omit unsupported fields and let wallet set fees
       const gasEstimate = await provider.request({
         method: 'eth_estimateGas',
         params: [{ from, to, data, value }]
       });
 
-      // Prepare transaction with paymaster
-      const transaction = {
+      const nonce = await provider.request({
+        method: 'eth_getTransactionCount',
+        params: [from, 'pending']
+      });
+
+      const transaction: any = {
         from,
         to,
         data,
         value,
         gas: gasEstimate,
-        gasPrice: '0x0', // Set to 0 for gasless transaction
-        nonce,
-        // Add paymaster data for EIP-4337 or custom paymaster implementation
-        paymasterAndData: currentNetwork.paymaster
+        nonce
+        // Do NOT set gasPrice/maxFee here; wallet/provider will populate EIP-1559 fees.
+        // Do NOT include custom fields like paymasterAndData in eth_sendTransaction.
       };
 
-      console.log('🚀 Sending transaction with paymaster...');
+      console.log('🚀 Sending transaction...');
       const txHash = await provider.request({
         method: 'eth_sendTransaction',
         params: [transaction]
       });
 
-      console.log('✅ Gasless transaction sent:', txHash);
+      console.log('✅ Transaction sent:', txHash);
       return txHash;
     } catch (error: any) {
-      console.error('❌ Error sending gasless transaction:', error);
-      throw new Error(error.message || 'Failed to send gasless transaction');
+      const msg = error?.data?.message || error?.details || error?.message || 'Failed to send transaction';
+      console.error('❌ Transaction error:', { message: msg, error });
+      throw new Error(msg);
     }
   }, [provider, currentNetwork]);
 

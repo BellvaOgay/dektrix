@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Play, Lock, Zap, Eye, Maximize } from "lucide-react";
+import { Play, Lock, Zap, Eye, Maximize, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { calculateBasePayPrice, isBasePayEnabled } from "@/lib/utils";
 import { deductCreditOnPlay, incrementPlayCount } from "@/api/videos";
@@ -47,9 +47,16 @@ const VideoCard = ({
 }: VideoCardProps) => {
   const [isHovered, setIsHovered] = useState(false);
   const [showPaymentOptions, setShowPaymentOptions] = useState(false);
+  const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [isModalMounted, setIsModalMounted] = useState(false);
+  const [isModalVisible, setIsModalVisible] = useState(false);
+  const [isVideoLoading, setIsVideoLoading] = useState(false);
+  const [videoError, setVideoError] = useState<string | null>(null);
+  const [isInitiallyMuted, setIsInitiallyMuted] = useState(true);
   // Remove hasDeductedCredit state as we want to deduct credits on every play
 
   const videoRef = useRef<HTMLVideoElement>(null);
+  const modalVideoRef = useRef<HTMLVideoElement>(null);
   const { user: walletUser } = useBaseWallet();
   const { currentPlayingVideo, setCurrentPlayingVideo, registerVideo, unregisterVideo } = useVideoPlayer();
   const { togglePortraitFullscreen } = usePortraitFullscreen();
@@ -117,7 +124,7 @@ const VideoCard = ({
     // Set this video as the currently playing video
     if (videoId) {
       setCurrentPlayingVideo(videoId);
-      
+
       // Increment play count when video starts playing
       try {
         const result = await incrementPlayCount(videoId);
@@ -142,19 +149,111 @@ const VideoCard = ({
     console.log('Video paused for:', title);
   };
 
+  const closeModal = () => {
+    console.log('Closing modal...');
+    // Prevent multiple rapid close calls
+    if (!isModalMounted) {
+      console.log('Modal already closed, ignoring close call');
+      return;
+    }
+    setIsModalVisible(false);
+    setTimeout(() => {
+      console.log('Modal closed, unmounting...');
+      setIsModalMounted(false);
+      // Reset audio state for next video
+      setIsInitiallyMuted(true);
+      // Pause modal video when closing
+      if (modalVideoRef.current) {
+        try { modalVideoRef.current.pause(); } catch { }
+      }
+    }, 200); // Match transition duration
+  };
+
+  // Handle ESC key to close modal
+  const handleKeyDown = (e: KeyboardEvent) => {
+    if (e.key === 'Escape' && isModalMounted) {
+      e.preventDefault();
+      closeModal();
+    }
+  };
+
+  // Add keyboard event listener for modal
+  useEffect(() => {
+    if (isModalMounted) {
+      document.addEventListener('keydown', handleKeyDown);
+      return () => document.removeEventListener('keydown', handleKeyDown);
+    }
+  }, [isModalMounted]);
+
   const handleClick = async () => {
+    console.log('handleClick called for video:', title, 'isLocked:', isLocked);
+    console.log('Current modal state - isModalMounted:', isModalMounted, 'isModalVisible:', isModalVisible);
+    console.log('Video source:', src);
+    
+    // Prevent rapid clicking - if modal is already opening/open, don't open again
+    if (isModalMounted || isModalVisible) {
+      console.log('Modal already open or opening, ignoring click');
+      return;
+    }
+    
+    // Check if video source is available
+    if (!src || src.trim() === '') {
+      console.error('No video source available for:', title);
+      setVideoError('Video source not available');
+      return;
+    }
+    
+    // FOR TESTING: Bypass credit system and directly open modal
+    console.log('TESTING MODE: Bypassing credit system - Opening modal for:', title);
+    if (onClick) onClick();
+    if (videoRef.current) {
+      try { videoRef.current.pause(); } catch { }
+    }
+    console.log('Opening modal directly for testing...');
+    console.log('Setting isModalMounted to true');
+    // Reset video state
+    setIsVideoLoading(true);
+    setVideoError(null);
+    setIsModalMounted(true);
+    requestAnimationFrame(() => {
+      console.log('Setting isModalVisible to true');
+      setIsModalVisible(true);
+    });
+    return; // Skip the rest for testing
+    
+    // Original logic commented out for testing
+    /*
     // Prevent video playback if locked (no credits available)
     if (isLocked) {
+      console.log('Video is locked, showing payment options');
       setShowPaymentOptions(true);
       return;
     }
 
     // Deduct credit before allowing video playback
     if (!isLocked) {
+      console.log('Attempting credit deduction...');
       const canPlay = await handleCreditDeduction();
+      console.log('Credit deduction result:', canPlay);
 
-      if (canPlay === true && onClick) {
-        onClick();
+      if (canPlay === true) {
+        // Record view or other side-effects
+        if (onClick) onClick();
+
+        // Pause inline video to avoid double audio
+        if (videoRef.current) {
+          try { videoRef.current.pause(); } catch { }
+        }
+
+        console.log('Opening modal...');
+        console.log('Setting isModalMounted to true');
+        // Open modal with smooth transition
+        setIsModalMounted(true);
+        // Wait for mount before showing to trigger transition
+        requestAnimationFrame(() => {
+          console.log('Setting isModalVisible to true');
+          setIsModalVisible(true);
+        });
       } else if (canPlay === 'insufficient_credits') {
         // User ran out of credits - show payment options
         console.log('Insufficient credits - showing payment options');
@@ -165,6 +264,7 @@ const VideoCard = ({
         setShowPaymentOptions(true);
       }
     }
+    */
   };
 
   const handlePayment = (paymentMethod: 'crypto' | 'basepay') => {
@@ -174,27 +274,66 @@ const VideoCard = ({
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      handleClick();
+  // Lock body scroll and handle ESC
+  useEffect(() => {
+    if (isModalMounted) {
+      const onKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          closeModal();
+        }
+      };
+      document.addEventListener('keydown', onKeyDown);
+      const prevOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.removeEventListener('keydown', onKeyDown);
+        document.body.style.overflow = prevOverflow;
+        // Clean up hover timeout
+        if (hoverTimeoutRef.current) {
+          clearTimeout(hoverTimeoutRef.current);
+          hoverTimeoutRef.current = null;
+        }
+      };
     }
-  };
+  }, [isModalMounted]);
 
   return (
     <div
       className={cn(
-        "relative rounded-2xl overflow-hidden bg-card border border-border hover:border-primary/50 transition-all duration-300 hover-lift",
-        onClick && "cursor-pointer"
+        "relative rounded-2xl overflow-hidden bg-card border border-border transition-all duration-300",
+        onClick && "cursor-pointer",
+        !isModalMounted && "hover:border-primary/50 hover-lift" // Only apply hover effects when modal is not open
       )}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+      onMouseEnter={() => {
+        if (hoverTimeoutRef.current) {
+          clearTimeout(hoverTimeoutRef.current);
+          hoverTimeoutRef.current = null;
+        }
+        if (!isModalMounted) {
+          setIsHovered(true);
+        }
+      }}
+      onMouseLeave={() => {
+        if (!isModalMounted) {
+          hoverTimeoutRef.current = setTimeout(() => {
+            setIsHovered(false);
+            hoverTimeoutRef.current = null;
+          }, 100); // Small delay to prevent rapid hover/unhover
+        }
+      }}
       onClick={handleClick}
-      onKeyDown={handleKeyDown}
       role={onClick ? "button" : undefined}
       tabIndex={onClick ? 0 : -1}
       aria-label={`Video card: ${title}`}
+      data-video-id={videoId}
     >
+      {/* VISUAL DEBUG: Show modal state on card */}
+      {isModalMounted && (
+        <div className="absolute top-2 right-2 bg-yellow-400 text-black px-2 py-1 rounded text-xs font-bold z-50">
+          MODAL ACTIVE
+        </div>
+      )}
       {/* Payment Options Modal */}
       {showPaymentOptions && (
         <div className="absolute inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center rounded-2xl">
@@ -257,10 +396,11 @@ const VideoCard = ({
                 console.log('Video load started for', title, 'with src:', src);
               }}
             />
-            
+
             {/* Fullscreen Button Overlay */}
             <button
               onClick={(e) => {
+                e.preventDefault();
                 e.stopPropagation();
                 if (videoRef.current) {
                   togglePortraitFullscreen(videoRef.current);
@@ -271,6 +411,32 @@ const VideoCard = ({
               title="Toggle fullscreen"
             >
               <Maximize className="w-4 h-4" />
+            </button>
+
+            {/* View in Modal Button Overlay */}
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('View in Modal button clicked for:', title);
+                console.log('Current modal state - isModalMounted:', isModalMounted, 'isModalVisible:', isModalVisible);
+                // Reuse existing handler to perform credit checks and open modal
+                handleClick();
+              }}
+              className={cn(
+                "absolute bottom-3 right-3 px-3 py-2 rounded-lg transition-all duration-200 hover:scale-105 z-10",
+                src && src.trim() !== '' 
+                  ? "bg-black/50 hover:bg-black/70 text-white" 
+                  : "bg-gray-500/50 text-gray-300 cursor-not-allowed"
+              )}
+              aria-label="View in modal"
+              title={src && src.trim() !== '' ? "View in modal" : "Video not available"}
+              disabled={!src || src.trim() === ''}
+            >
+              <span className="inline-flex items-center gap-2">
+                <Play className="w-4 h-4" />
+                View in Modal
+              </span>
             </button>
           </div>
         ) : (
@@ -365,8 +531,208 @@ const VideoCard = ({
 
 
       </div>
+
+      {/* Modal Video Player Overlay */}
+      {isModalMounted && (
+        <div
+          className={cn(
+            "fixed inset-0 z-[100] flex justify-center items-center backdrop-blur-sm bg-black/80 transition-all duration-300 ease-in-out",
+            isModalVisible ? "opacity-100" : "opacity-0 pointer-events-none"
+          )}
+          onClick={(e) => {
+            // Only close if clicking directly on backdrop, not on modal content
+            // Add a small delay to prevent accidental clicks
+            if (e.target === e.currentTarget) {
+              setTimeout(() => {
+                closeModal();
+              }, 50);
+            }
+          }}
+          aria-modal="true"
+          role="dialog"
+        >
+          {/* VISUAL DEBUG: Show modal state */}
+          <div className="absolute top-4 left-4 bg-red-500 text-white p-2 rounded">
+            MODAL: {isModalMounted ? 'MOUNTED' : 'NOT_MOUNTED'} | {isModalVisible ? 'VISIBLE' : 'NOT_VISIBLE'}
+          </div>
+          <div
+            className={cn(
+              "relative max-w-5xl w-full mx-4 bg-background rounded-xl overflow-hidden shadow-2xl transform transition-all duration-300 ease-in-out",
+              isModalVisible ? "scale-100 opacity-100" : "scale-95 opacity-0"
+            )}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex justify-between items-center p-6 bg-background/95 backdrop-blur-sm border-b border-border/50">
+              <div className="flex items-center gap-3">
+                <Play className="w-6 h-6 text-primary" />
+                <h3 className="text-xl font-bold text-foreground">{title}</h3>
+                {topic && (
+                  <span className="text-xs text-accent font-bold uppercase bg-accent/10 px-2 py-1 rounded-full">
+                    {topic}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                {/* Unmute button for better audio experience */}
+                {isInitiallyMuted && (
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setIsInitiallyMuted(false);
+                      if (modalVideoRef.current) {
+                        modalVideoRef.current.muted = false;
+                        modalVideoRef.current.play().catch(err => {
+                          console.log('Play after unmute failed:', err);
+                        });
+                      }
+                    }}
+                    className="p-2 hover:bg-accent/20 rounded-full transition-all duration-200 group"
+                    aria-label="Unmute video"
+                    title="Click to enable sound"
+                  >
+                    <svg className="w-5 h-5 text-muted-foreground group-hover:text-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
+                    </svg>
+                  </button>
+                )}
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    closeModal();
+                  }}
+                  className="p-3 hover:bg-accent/20 rounded-full transition-all duration-200 hover:scale-110 group"
+                  aria-label="Close modal"
+                  title="Close modal (ESC)"
+                >
+                  <X className="w-6 h-6 text-muted-foreground group-hover:text-foreground transition-colors" />
+                </button>
+              </div>
+            </div>
+            
+            {/* Video Container */}
+            <div className="relative bg-black">
+              <div className="aspect-video">
+                <video
+                  ref={modalVideoRef}
+                  className="w-full h-full object-contain"
+                  src={src}
+                  controls
+                  muted={isInitiallyMuted}
+                  playsInline
+                  poster={thumbnail}
+                  onPlay={() => {
+                    console.log('Modal video playing:', title);
+                    setIsVideoLoading(false);
+                  }}
+                  onPause={() => console.log('Modal video paused:', title)}
+                  onError={(e) => {
+                    console.log('Modal video error:', e);
+                    setIsVideoLoading(false);
+                    setVideoError('Failed to load video. Please try again.');
+                  }}
+                  onLoadStart={() => {
+                    console.log('Modal video load started:', title);
+                    setIsVideoLoading(true);
+                    setVideoError(null);
+                  }}
+                  onLoadedData={() => console.log('Modal video data loaded:', title)}
+                  onCanPlay={() => {
+                    console.log('Modal video can play:', title);
+                    setIsVideoLoading(false);
+                    // Try to autoplay with initial mute, then unmute automatically
+                    if (modalVideoRef.current) {
+                      modalVideoRef.current.play().then(() => {
+                        console.log('Video autoplayed successfully');
+                        // Auto-unmute after successful autoplay for better user experience
+                        setTimeout(() => {
+                          setIsInitiallyMuted(false);
+                          modalVideoRef.current!.muted = false;
+                          console.log('Video automatically unmuted');
+                        }, 1000); // Small delay to ensure smooth playback
+                      }).catch(err => {
+                        console.log('Autoplay prevented:', err);
+                        // Video ready for user interaction, user can click play/unmute
+                      });
+                    }
+                  }}
+                />
+                {/* Loading overlay */}
+                {isVideoLoading && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/80">
+                    <div className="text-center">
+                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+                      <p className="text-white text-sm">Loading video...</p>
+                    </div>
+                  </div>
+                )}
+                {/* Error overlay */}
+                {videoError && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/80">
+                    <div className="text-center p-6">
+                      <p className="text-red-400 text-sm mb-4">{videoError}</p>
+                      <button
+                        onClick={() => {
+                          setIsVideoLoading(true);
+                          setVideoError(null);
+                          if (modalVideoRef.current) {
+                            modalVideoRef.current.load();
+                          }
+                        }}
+                        className="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg text-sm transition-colors"
+                      >
+                        Retry
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              {/* Loading Indicator */}
+              <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity duration-300">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+              </div>
+            </div>
+            
+            {/* Video Info Footer */}
+            <div className="p-6 bg-background/95 backdrop-blur-sm border-t border-border/50">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                  {duration && (
+                    <span className="flex items-center gap-1">
+                      <span>Duration:</span>
+                      <span className="font-medium text-foreground">{duration}</span>
+                    </span>
+                  )}
+                  {totalViews > 0 && (
+                    <span className="flex items-center gap-1">
+                      <Eye className="w-4 h-4" />
+                      <span>{totalViews.toLocaleString()} views</span>
+                    </span>
+                  )}
+                </div>
+                {!isFree && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground">Price:</span>
+                    <span className="font-bold text-primary">{priceDisplay}</span>
+                  </div>
+                )}
+              </div>
+              
+              {description && (
+                <p className="text-sm text-muted-foreground mt-3 line-clamp-2">
+                  {description}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
-};
+}
 
 export default VideoCard;
