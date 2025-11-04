@@ -116,34 +116,7 @@ async function createTestData() {
 
     // Create test videos
     const testVideos = [
-      {
-        title: 'Introduction to AI Agents',
-        description: 'Learn the basics of AI agents and how they work',
-        thumbnail: '/placeholder.svg',
-        videoUrl: '/videos/Vid1.mp4',
-        duration: 180,
-        category: 'ai-agents',
-        tags: ['AI', 'Agents', 'Beginner'],
-        price: 1000000000000000, // 0.001 ETH in wei
-        priceDisplay: '$0.01',
-        difficulty: 'Beginner',
-        creator: testUser._id,
-        isFree: false
-      },
-      {
-        title: 'DeFi Fundamentals',
-        description: 'Understanding decentralized finance protocols',
-        thumbnail: '/placeholder.svg',
-        videoUrl: '/videos/Vid2.mp4',
-        duration: 240,
-        category: 'defi',
-        tags: ['DeFi', 'Finance', 'Protocols'],
-        price: 2000000000000000, // 0.002 ETH in wei
-        priceDisplay: '$0.02',
-        difficulty: 'Intermediate',
-        creator: testUser._id,
-        isFree: false
-      },
+
       {
         title: 'Blockchain Basics',
         description: 'Learn the fundamentals of blockchain technology',

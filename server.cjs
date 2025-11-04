@@ -246,6 +246,48 @@ app.post('/api/users/add-credits', async (req, res) => {
   }
 });
 
+// Get user credits by wallet address
+app.get('/api/users/:wallet/credits', async (req, res) => {
+  try {
+    const { wallet } = req.params;
+
+    if (!wallet) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Wallet address is required' 
+      });
+    }
+
+    const user = await User.findOne({ 
+      walletAddress: wallet.toLowerCase() 
+    }).select('walletAddress username viewCredits');
+
+    if (!user) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'User not found' 
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        walletAddress: user.walletAddress,
+        username: user.username,
+        viewCredits: user.viewCredits || 0
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching user credits:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Internal server error',
+      message: process.env.NODE_ENV === 'development' ? error.message : 'Failed to fetch user credits'
+    });
+  }
+});
+
 // Creator API Routes
 
 // Get creator by wallet address
@@ -574,14 +616,6 @@ app.post('/api/videos/deduct-credit', async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Check if user already watched this video
-    if (user.videosWatched && user.videosWatched.includes(videoId)) {
-      return res.status(400).json({ 
-        error: 'Video already watched',
-        remainingCredits: user.viewCredits
-      });
-    }
-
     // Check if user has sufficient credits
     if (user.viewCredits < 1) {
       return res.status(400).json({ 
@@ -596,18 +630,18 @@ app.post('/api/videos/deduct-credit', async (req, res) => {
       return res.status(404).json({ error: 'Video not found' });
     }
 
-    // Deduct one credit
+    // Deduct one credit for each view (allow multiple views of same video)
     user.viewCredits -= 1;
     
-    // Add video to watched list
-    if (!user.videosWatched) {
-      user.videosWatched = [];
+    // Track total views for analytics (but allow rewatching)
+    if (!user.totalVideoViews) {
+      user.totalVideoViews = 0;
     }
-    user.videosWatched.push(videoId);
+    user.totalVideoViews += 1;
     
     await user.save();
 
-    console.log(`✅ Credit deducted for user ${walletAddress} watching video ${video.title}`);
+    console.log(`✅ Credit deducted for user ${walletAddress} watching video ${video.title}. Remaining credits: ${user.viewCredits}`);
 
     res.status(200).json({
       success: true,
@@ -669,6 +703,49 @@ app.post('/api/videos/:videoId/view', async (req, res) => {
     res.status(500).json({ 
       error: 'Internal server error',
       message: process.env.NODE_ENV === 'development' ? error.message : 'Failed to increment view count'
+    });
+  }
+});
+
+// Increment video play count
+app.post('/api/videos/increment-play-count', async (req, res) => {
+  try {
+    const { videoId } = req.body;
+
+    // Validate video ID
+    if (!videoId) {
+      return res.status(400).json({ 
+        error: 'Video ID is required' 
+      });
+    }
+
+    // Find and update video
+    const video = await Video.findById(videoId);
+    if (!video) {
+      return res.status(404).json({ error: 'Video not found' });
+    }
+
+    // Increment play count
+    video.playCount = (video.playCount || 0) + 1;
+    await video.save();
+
+    console.log(`✅ Play count incremented for video: ${video.title} (Total plays: ${video.playCount})`);
+
+    res.status(200).json({
+      success: true,
+      message: 'Play count incremented successfully',
+      data: {
+        videoId: video._id,
+        title: video.title,
+        playCount: video.playCount
+      }
+    });
+
+  } catch (error) {
+    console.error('Error incrementing video play count:', error);
+    res.status(500).json({ 
+      error: 'Internal server error',
+      message: process.env.NODE_ENV === 'development' ? error.message : 'Failed to increment play count'
     });
   }
 });

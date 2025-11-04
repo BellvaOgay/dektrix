@@ -137,7 +137,7 @@ export async function createCreator(creatorData: CreateCreatorData): Promise<Cre
 // Update creator
 export async function updateCreator(walletAddress: string, updateData: UpdateCreatorData): Promise<CreatorResponse> {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/creators/${walletAddress}`, {
+    const response = await fetch(`${API_BASE_URL}/api/creators?wallet_address=${walletAddress}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -160,7 +160,7 @@ export async function updateCreator(walletAddress: string, updateData: UpdateCre
 // Update creator earnings (internal use)
 export async function updateCreatorEarnings(walletAddress: string, amount: number): Promise<CreatorResponse> {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/creators/${walletAddress}/earnings`, {
+    const response = await fetch(`${API_BASE_URL}/api/creators/earnings?wallet_address=${walletAddress}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -183,7 +183,7 @@ export async function updateCreatorEarnings(walletAddress: string, amount: numbe
 // Delete creator (soft delete)
 export async function deleteCreator(walletAddress: string): Promise<{ message: string }> {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/creators/${walletAddress}`, {
+    const response = await fetch(`${API_BASE_URL}/api/creators?wallet_address=${walletAddress}`, {
       method: 'DELETE',
     });
     

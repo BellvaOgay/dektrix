@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Video Loading</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: white;
+        }
+        .test-section {
+            margin: 30px 0;
+            padding: 20px;
+            border: 1px solid #333;
+            border-radius: 8px;
+            background: #2a2a2a;
+        }
+        video {
+            width: 100%;
+            max-width: 400px;
+            height: auto;
+            margin: 10px 0;
+            border: 2px solid #444;
+            border-radius: 8px;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            background: #333;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .success { background: #2d5a2d; }
+        .error { background: #5a2d2d; }
+        .info { background: #2d4a5a; }
+        button {
+            background: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #45a049; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Debug Video Loading</h1>
+    
+    <div class="test-section">
+        <h2>Test 1: Fetch + Blob URL Method</h2>
+        <p>This method fetches the video as a blob and creates a blob URL</p>
+        <button onclick="testFetchMethod('Vid3')">Test Vid3 with Fetch</button>
+        <button onclick="testFetchMethod('Vid4')">Test Vid4 with Fetch</button>
+        <div id="fetch-container"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 2: Direct Video Element</h2>
+        <p>This method uses direct video src attribute</p>
+        <button onclick="testDirectMethod('Vid3')">Test Vid3 Direct</button>
+        <button onclick="testDirectMethod('Vid4')">Test Vid4 Direct</button>
+        <div id="direct-container"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 3: Network Analysis</h2>
+        <p>Analyzing network requests and responses</p>
+        <button onclick="analyzeNetwork('Vid3')">Analyze Vid3</button>
+        <button onclick="analyzeNetwork('Vid4')">Analyze Vid4</button>
+        <div id="network-container"></div>
+    </div>
+
+    <script>
+        async function testFetchMethod(videoName) {
+            const container = document.getElementById('fetch-container');
+            const url = `/videos/${videoName}.mp4`;
+            
+            try {
+                console.log(`Fetching ${url}...`);
+                
+                const response = await fetch(url);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                console.log(`Fetch successful for ${videoName}`);
+                const blob = await response.blob();
+                const blobUrl = URL.createObjectURL(blob);
+                
+                const videoDiv = document.createElement('div');
+                videoDiv.innerHTML = `
+                    <h3>Fetch Method - ${videoName}</h3>
+                    <video controls preload="metadata" src="${blobUrl}"></video>
+                    <div class="status success">✅ Loaded via fetch + blob URL</div>
+                `;
+                
+                container.appendChild(videoDiv);
+                
+            } catch (error) {
+                console.error(`Fetch failed for ${videoName}:`, error);
+                const errorDiv = document.createElement('div');
+                errorDiv.innerHTML = `
+                    <h3>Fetch Method - ${videoName}</h3>
+                    <div class="status error">❌ Fetch failed: ${error.message}</div>
+                `;
+                container.appendChild(errorDiv);
+            }
+        }
+
+        function testDirectMethod(videoName) {
+            const container = document.getElementById('direct-container');
+            const url = `/videos/${videoName}.mp4`;
+            
+            const videoDiv = document.createElement('div');
+            const video = document.createElement('video');
+            video.controls = true;
+            video.preload = 'metadata';
+            video.src = url;
+            
+            const status = document.createElement('div');
+            status.className = 'status info';
+            status.textContent = 'Loading...';
+            
+            video.addEventListener('loadedmetadata', () => {
+                status.className = 'status success';
+                status.textContent = `✅ Direct method successful - ${video.duration.toFixed(2)}s`;
+            });
+            
+            video.addEventListener('error', (e) => {
+                status.className = 'status error';
+                status.textContent = `❌ Direct method failed: ${e.target.error?.message || 'Unknown error'}`;
+            });
+            
+            videoDiv.innerHTML = `<h3>Direct Method - ${videoName}</h3>`;
+            videoDiv.appendChild(video);
+            videoDiv.appendChild(status);
+            
+            container.appendChild(videoDiv);
+        }
+
+        async function analyzeNetwork(videoName) {
+            const container = document.getElementById('network-container');
+            const url = `/videos/${videoName}.mp4`;
+            
+            try {
+                // Test HEAD request
+                const headResponse = await fetch(url, { method: 'HEAD' });
+                
+                // Test GET request with range
+                const rangeResponse = await fetch(url, {
+                    headers: { 'Range': 'bytes=0-1023' }
+                });
+                
+                // Test full GET request
+                const getResponse = await fetch(url);
+                
+                const analysisDiv = document.createElement('div');
+                analysisDiv.innerHTML = `
+                    <h3>Network Analysis - ${videoName}</h3>
+                    <div class="status info">
+                        <strong>HEAD Request:</strong> ${headResponse.status} ${headResponse.statusText}<br>
+                        Content-Type: ${headResponse.headers.get('content-type')}<br>
+                        Content-Length: ${headResponse.headers.get('content-length')}<br>
+                        Accept-Ranges: ${headResponse.headers.get('accept-ranges')}<br><br>
+                        
+                        <strong>Range Request:</strong> ${rangeResponse.status} ${rangeResponse.statusText}<br>
+                        Content-Range: ${rangeResponse.headers.get('content-range')}<br>
+                        Content-Length: ${rangeResponse.headers.get('content-length')}<br><br>
+                        
+                        <strong>GET Request:</strong> ${getResponse.status} ${getResponse.statusText}<br>
+                        Content-Type: ${getResponse.headers.get('content-type')}<br>
+                        Content-Length: ${getResponse.headers.get('content-length')}
+                    </div>
+                `;
+                
+                container.appendChild(analysisDiv);
+                
+            } catch (error) {
+                const errorDiv = document.createElement('div');
+                errorDiv.innerHTML = `
+                    <h3>Network Analysis - ${videoName}</h3>
+                    <div class="status error">❌ Analysis failed: ${error.message}</div>
+                `;
+                container.appendChild(errorDiv);
+            }
+        }
+
+        // Monitor all network requests
+        const originalFetch = window.fetch;
+        window.fetch = function(...args) {
+            console.log('Fetch request:', args[0], args[1]);
+            return originalFetch.apply(this, args)
+                .then(response => {
+                    console.log('Fetch response:', response.status, response.statusText, response.url);
+                    return response;
+                })
+                .catch(error => {
+                    console.error('Fetch error:', error);
+                    throw error;
+                });
+        };
+    </script>
+</body>
+</html>

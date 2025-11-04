@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🧪 Upload API Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: white;
+        }
+        .container {
+            background: #2a2a2a;
+            padding: 30px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+        .form-group {
+            margin: 20px 0;
+        }
+        label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: bold;
+            color: #4CAF50;
+        }
+        input[type="file"] {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #4CAF50;
+            border-radius: 5px;
+            background: #333;
+            color: white;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        button:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+        .result {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: monospace;
+        }
+        .success {
+            background: #2d5a2d;
+            border: 1px solid #4CAF50;
+        }
+        .error {
+            background: #5a2d2d;
+            border: 1px solid #f44336;
+        }
+        .info {
+            background: #2d4a5a;
+            border: 1px solid #2196F3;
+        }
+        h1 { color: #4CAF50; }
+        h2 { color: #2196F3; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Upload API Test</h1>
+    
+    <div class="container">
+        <h2>📁 File Upload Test</h2>
+        <p>This page tests the new file upload API endpoint.</p>
+        
+        <form id="uploadForm">
+            <div class="form-group">
+                <label for="videoFile">📹 Video File:</label>
+                <input type="file" id="videoFile" name="video" accept="video/*" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="thumbnailFile">🖼️ Thumbnail File:</label>
+                <input type="file" id="thumbnailFile" name="thumbnail" accept="image/*" required>
+            </div>
+            
+            <button type="submit" id="uploadBtn">🚀 Upload Files</button>
+            <button type="button" id="clearBtn">🗑️ Clear Results</button>
+        </form>
+    </div>
+
+    <div id="results"></div>
+
+    <script>
+        const form = document.getElementById('uploadForm');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const results = document.getElementById('results');
+
+        function addResult(message, type = 'info') {
+            const div = document.createElement('div');
+            div.className = `result ${type}`;
+            div.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            results.appendChild(div);
+            results.scrollTop = results.scrollHeight;
+        }
+
+        function addJsonResult(data, type = 'info') {
+            const div = document.createElement('div');
+            div.className = `result ${type}`;
+            div.innerHTML = `<pre>[${new Date().toLocaleTimeString()}] ${JSON.stringify(data, null, 2)}</pre>`;
+            results.appendChild(div);
+            results.scrollTop = results.scrollHeight;
+        }
+
+        clearBtn.addEventListener('click', () => {
+            results.innerHTML = '';
+        });
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const videoFile = document.getElementById('videoFile').files[0];
+            const thumbnailFile = document.getElementById('thumbnailFile').files[0];
+            
+            if (!videoFile || !thumbnailFile) {
+                addResult('❌ Please select both video and thumbnail files', 'error');
+                return;
+            }
+
+            uploadBtn.disabled = true;
+            uploadBtn.textContent = '⏳ Uploading...';
+            
+            addResult(`📤 Starting upload: Video (${videoFile.name}), Thumbnail (${thumbnailFile.name})`);
+            
+            try {
+                const formData = new FormData();
+                formData.append('video', videoFile);
+                formData.append('thumbnail', thumbnailFile);
+
+                addResult('🌐 Sending request to /api/upload...');
+                
+                const response = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                addResult(`📡 Response status: ${response.status} ${response.statusText}`);
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    addResult('✅ Upload successful!', 'success');
+                    addJsonResult(result, 'success');
+                    
+                    // Test if files are accessible
+                    if (result.data && result.data.files) {
+                        const { video, thumbnail } = result.data.files;
+                        
+                        if (video) {
+                            addResult(`🎬 Testing video access: ${video}`);
+                            try {
+                                const videoResponse = await fetch(video, { method: 'HEAD' });
+                                addResult(`📹 Video accessible: ${videoResponse.status} ${videoResponse.statusText}`, 
+                                    videoResponse.ok ? 'success' : 'error');
+                            } catch (err) {
+                                addResult(`❌ Video access error: ${err.message}`, 'error');
+                            }
+                        }
+                        
+                        if (thumbnail) {
+                            addResult(`🖼️ Testing thumbnail access: ${thumbnail}`);
+                            try {
+                                const thumbResponse = await fetch(thumbnail, { method: 'HEAD' });
+                                addResult(`🖼️ Thumbnail accessible: ${thumbResponse.status} ${thumbResponse.statusText}`, 
+                                    thumbResponse.ok ? 'success' : 'error');
+                            } catch (err) {
+                                addResult(`❌ Thumbnail access error: ${err.message}`, 'error');
+                            }
+                        }
+                    }
+                } else {
+                    addResult('❌ Upload failed', 'error');
+                    addJsonResult(result, 'error');
+                }
+                
+            } catch (error) {
+                addResult(`💥 Upload error: ${error.message}`, 'error');
+                console.error('Upload error:', error);
+            } finally {
+                uploadBtn.disabled = false;
+                uploadBtn.textContent = '🚀 Upload Files';
+            }
+        });
+
+        // Initial message
+        addResult('🔧 Upload API test page loaded. Select files and click upload to test.');
+    </script>
+</body>
+</html>

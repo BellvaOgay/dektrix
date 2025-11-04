@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Credits Endpoint</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .result {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 5px;
+            white-space: pre-wrap;
+            font-family: monospace;
+        }
+        .success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        input {
+            padding: 8px;
+            margin: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            width: 300px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Credits Endpoint Test</h1>
+        <p>This page tests the new user credits endpoint functionality.</p>
+
+        <div class="test-section">
+            <h2>Test User Credits Endpoint</h2>
+            <p>Enter a wallet address to fetch credits:</p>
+            <input type="text" id="walletInput" placeholder="Enter wallet address" value="0x50d2C99358c9d3671869b75ceEE269f2F393E179">
+            <br>
+            <button onclick="testCreditsEndpoint()">Test Credits Endpoint</button>
+            <button onclick="testNonExistentUser()">Test Non-Existent User</button>
+            <div id="creditsResult" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>Compare with Full User Data</h2>
+            <p>Compare credits endpoint with full user data endpoint:</p>
+            <button onclick="compareEndpoints()">Compare Both Endpoints</button>
+            <div id="compareResult" class="result"></div>
+        </div>
+    </div>
+
+    <script>
+        async function testCreditsEndpoint() {
+            const walletAddress = document.getElementById('walletInput').value.trim();
+            const resultDiv = document.getElementById('creditsResult');
+            
+            if (!walletAddress) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = 'Please enter a wallet address';
+                return;
+            }
+
+            try {
+                console.log('Testing credits endpoint for:', walletAddress);
+                
+                const response = await fetch(`/api/users/${walletAddress}/credits`);
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    resultDiv.className = 'result success';
+                    resultDiv.textContent = `✅ Credits Endpoint Success!\n\nWallet: ${data.data.walletAddress}\nUsername: ${data.data.username}\nCredits: ${data.data.viewCredits}`;
+                } else {
+                    resultDiv.className = 'result error';
+                    resultDiv.textContent = `❌ Error: ${data.error || 'Unknown error'}\nStatus: ${response.status}`;
+                }
+            } catch (error) {
+                console.error('Error testing credits endpoint:', error);
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `❌ Network Error: ${error.message}`;
+            }
+        }
+
+        async function testNonExistentUser() {
+            const resultDiv = document.getElementById('creditsResult');
+            const fakeWallet = '0x1234567890123456789012345678901234567890';
+            
+            try {
+                console.log('Testing credits endpoint with non-existent user:', fakeWallet);
+                
+                const response = await fetch(`/api/users/${fakeWallet}/credits`);
+                const data = await response.json();
+                
+                if (response.status === 404 && !data.success) {
+                    resultDiv.className = 'result success';
+                    resultDiv.textContent = `✅ Correctly handled non-existent user!\n\nStatus: ${response.status}\nError: ${data.error}`;
+                } else {
+                    resultDiv.className = 'result error';
+                    resultDiv.textContent = `❌ Unexpected response for non-existent user\nStatus: ${response.status}\nData: ${JSON.stringify(data, null, 2)}`;
+                }
+            } catch (error) {
+                console.error('Error testing non-existent user:', error);
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `❌ Network Error: ${error.message}`;
+            }
+        }
+
+        async function compareEndpoints() {
+            const walletAddress = document.getElementById('walletInput').value.trim();
+            const resultDiv = document.getElementById('compareResult');
+            
+            if (!walletAddress) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = 'Please enter a wallet address';
+                return;
+            }
+
+            try {
+                console.log('Comparing endpoints for:', walletAddress);
+                
+                // Test credits endpoint
+                const creditsResponse = await fetch(`/api/users/${walletAddress}/credits`);
+                const creditsData = await creditsResponse.json();
+                
+                // Test full user endpoint
+                const userResponse = await fetch(`/api/users/${walletAddress}`);
+                const userData = await userResponse.json();
+                
+                if (creditsResponse.ok && userResponse.ok && creditsData.success && userData.success) {
+                    const creditsFromCreditsEndpoint = creditsData.data.viewCredits;
+                    const creditsFromUserEndpoint = userData.data.viewCredits;
+                    
+                    if (creditsFromCreditsEndpoint === creditsFromUserEndpoint) {
+                        resultDiv.className = 'result success';
+                        resultDiv.textContent = `✅ Both endpoints return same credits!\n\nCredits Endpoint: ${creditsFromCreditsEndpoint}\nUser Endpoint: ${creditsFromUserEndpoint}\n\nCredits endpoint is working correctly!`;
+                    } else {
+                        resultDiv.className = 'result error';
+                        resultDiv.textContent = `❌ Mismatch in credits!\n\nCredits Endpoint: ${creditsFromCreditsEndpoint}\nUser Endpoint: ${creditsFromUserEndpoint}`;
+                    }
+                } else {
+                    resultDiv.className = 'result error';
+                    resultDiv.textContent = `❌ One or both endpoints failed\n\nCredits Response: ${creditsResponse.status}\nUser Response: ${userResponse.status}`;
+                }
+            } catch (error) {
+                console.error('Error comparing endpoints:', error);
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `❌ Network Error: ${error.message}`;
+            }
+        }
+    </script>
+</body>
+</html>

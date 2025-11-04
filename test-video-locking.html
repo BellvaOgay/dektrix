@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Locking Test - Mobile & Desktop</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #1e1e2e 0%, #2d2d44 100%);
+            color: white;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            text-align: center;
+            color: #00d4ff;
+            margin-bottom: 30px;
+        }
+        
+        .test-section {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .test-controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        button {
+            background: linear-gradient(135deg, #00d4ff 0%, #0099cc 100%);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 212, 255, 0.3);
+        }
+        
+        button.danger {
+            background: linear-gradient(135deg, #ff4757 0%, #c44569 100%);
+        }
+        
+        .status {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border-left: 4px solid #00d4ff;
+        }
+        
+        .video-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .video-card {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        
+        .video-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+        }
+        
+        .video-thumbnail {
+            width: 100%;
+            height: 200px;
+            background: linear-gradient(45deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+        
+        .video-info {
+            padding: 15px;
+        }
+        
+        .video-title {
+            font-weight: bold;
+            margin-bottom: 8px;
+            font-size: 16px;
+        }
+        
+        .video-meta {
+            color: #aaa;
+            font-size: 14px;
+            margin-bottom: 5px;
+        }
+        
+        .lock-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(4px);
+        }
+        
+        .lock-icon {
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+        
+        .lock-message {
+            text-align: center;
+            margin-bottom: 15px;
+        }
+        
+        .purchase-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        
+        .play-icon {
+            font-size: 48px;
+            opacity: 0.7;
+        }
+        
+        .credits-display {
+            background: rgba(0, 212, 255, 0.2);
+            padding: 10px 15px;
+            border-radius: 8px;
+            display: inline-block;
+            margin-bottom: 20px;
+            border: 1px solid rgba(0, 212, 255, 0.3);
+        }
+        
+        .mobile-test {
+            background: rgba(255, 165, 0, 0.1);
+            border: 1px solid rgba(255, 165, 0, 0.3);
+        }
+        
+        @media (max-width: 768px) {
+            .test-controls {
+                flex-direction: column;
+            }
+            
+            .video-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .container {
+                padding: 10px;
+            }
+            
+            body {
+                padding: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔒 Video Locking Test - Mobile & Desktop</h1>
+        
+        <div class="test-section">
+            <h2>Test Controls</h2>
+            <div class="credits-display">
+                <strong>Current Credits: <span id="creditCount">5</span></strong>
+            </div>
+            
+            <div class="test-controls">
+                <button onclick="setCredits(0)" class="danger">Set Credits to 0 (Lock All)</button>
+                <button onclick="setCredits(1)">Set Credits to 1</button>
+                <button onclick="setCredits(5)">Set Credits to 5</button>
+                <button onclick="setCredits(10)">Set Credits to 10</button>
+                <button onclick="simulatePlay()">Simulate Video Play</button>
+            </div>
+            
+            <div class="status" id="status">
+                Status: Ready to test video locking functionality
+            </div>
+        </div>
+        
+        <div class="test-section mobile-test">
+            <h2>📱 Mobile View Test</h2>
+            <p>To test mobile view:</p>
+            <ol>
+                <li>Open browser developer tools (F12)</li>
+                <li>Click the device toggle button (📱) or press Ctrl+Shift+M</li>
+                <li>Select a mobile device (iPhone, Android, etc.)</li>
+                <li>Test the video locking functionality with different credit amounts</li>
+            </ol>
+        </div>
+        
+        <div class="test-section">
+            <h2>Video Feed Simulation</h2>
+            <div class="video-grid" id="videoGrid">
+                <!-- Videos will be generated here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentCredits = 5;
+        
+        const mockVideos = [
+            { id: 1, title: "AI Agents Are Hiring Each Other Now??? 😱", topic: "AI Agents", duration: "28s" },
+            { id: 2, title: "Smart Contracts Explained Simply", topic: "Blockchain", duration: "45s" },
+            { id: 3, title: "The Future of Web3", topic: "Web3", duration: "1m 20s" },
+            { id: 4, title: "DeFi Revolution", topic: "DeFi", duration: "2m 15s" },
+            { id: 5, title: "NFT Marketplace Trends", topic: "NFTs", duration: "1m 45s" },
+            { id: 6, title: "Crypto Trading Strategies", topic: "Trading", duration: "3m 10s" }
+        ];
+        
+        function setCredits(amount) {
+            currentCredits = amount;
+            document.getElementById('creditCount').textContent = amount;
+            updateStatus(`Credits set to ${amount}`);
+            renderVideos();
+        }
+        
+        function updateStatus(message) {
+            const status = document.getElementById('status');
+            status.textContent = `Status: ${message}`;
+            
+            // Add visual feedback
+            status.style.borderLeftColor = currentCredits > 0 ? '#00d4ff' : '#ff4757';
+        }
+        
+        function simulatePlay() {
+            if (currentCredits <= 0) {
+                updateStatus('❌ Cannot play video - No credits available!');
+                showPurchaseModal();
+                return;
+            }
+            
+            currentCredits--;
+            document.getElementById('creditCount').textContent = currentCredits;
+            updateStatus(`✅ Video played! Credits remaining: ${currentCredits}`);
+            renderVideos();
+            
+            if (currentCredits === 0) {
+                setTimeout(() => {
+                    updateStatus('⚠️ No credits remaining - All videos are now locked!');
+                }, 1000);
+            }
+        }
+        
+        function showPurchaseModal() {
+            alert('🔒 Insufficient Credits!\n\nYou need credits to watch videos. Each video view costs 1 credit.\n\nClick "Purchase Credits" to buy more credits.');
+        }
+        
+        function renderVideos() {
+            const grid = document.getElementById('videoGrid');
+            const hasCredits = currentCredits > 0;
+            
+            grid.innerHTML = mockVideos.map(video => `
+                <div class="video-card" onclick="handleVideoClick(${video.id})">
+                    <div class="video-thumbnail">
+                        ${hasCredits ? 
+                            '<div class="play-icon">▶️</div>' : 
+                            `<div class="lock-overlay">
+                                <div class="lock-icon">🔒</div>
+                                <div class="lock-message">
+                                    <strong>Insufficient credits</strong><br>
+                                    <small>You need at least 1 credit to unlock videos</small>
+                                </div>
+                                <button class="purchase-btn" onclick="event.stopPropagation(); showPurchaseModal()">
+                                    Purchase Credits
+                                </button>
+                            </div>`
+                        }
+                    </div>
+                    <div class="video-info">
+                        <div class="video-title">${video.title}</div>
+                        <div class="video-meta">Topic: ${video.topic}</div>
+                        <div class="video-meta">Duration: ${video.duration}</div>
+                        <div class="video-meta">
+                            Status: ${hasCredits ? '🟢 Unlocked' : '🔒 Locked'}
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        function handleVideoClick(videoId) {
+            if (currentCredits <= 0) {
+                updateStatus(`❌ Video ${videoId} is locked - No credits available!`);
+                showPurchaseModal();
+                return;
+            }
+            
+            simulatePlay();
+            updateStatus(`✅ Playing video ${videoId} - Credit deducted`);
+        }
+        
+        // Initialize the page
+        renderVideos();
+        updateStatus('Ready to test video locking functionality');
+        
+        // Add mobile detection
+        function isMobileView() {
+            return window.innerWidth <= 768;
+        }
+        
+        // Update status on resize to show mobile/desktop mode
+        window.addEventListener('resize', () => {
+            const mode = isMobileView() ? 'Mobile' : 'Desktop';
+            setTimeout(() => {
+                updateStatus(`${mode} view - Credits: ${currentCredits}`);
+            }, 100);
+        });
+    </script>
+</body>
+</html>

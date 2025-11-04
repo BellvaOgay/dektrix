@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Creator Profile Debug Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; }
+        .success { color: green; }
+        .error { color: red; }
+        .info { color: blue; }
+        pre { background: #f5f5f5; padding: 10px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>Creator Profile Debug Test</h1>
+    
+    <div class="test-section">
+        <h2>1. API Base URL Test</h2>
+        <div id="api-base-url-result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>2. Creator API Test</h2>
+        <button onclick="testCreatorAPI()">Test Creator API</button>
+        <div id="creator-api-result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>3. Get or Create Creator Test</h2>
+        <button onclick="testGetOrCreateCreator()">Test Get or Create Creator</button>
+        <div id="get-create-result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>4. Frontend Creator Profile Test</h2>
+        <button onclick="testFrontendProfile()">Test Frontend Profile</button>
+        <div id="frontend-result"></div>
+    </div>
+
+    <script>
+        // Check API base URL
+        const API_BASE_URL = 'http://localhost:3001';
+        document.getElementById('api-base-url-result').innerHTML = `<span class="info">API Base URL: ${API_BASE_URL}</span>`;
+
+        async function testCreatorAPI() {
+            const resultDiv = document.getElementById('creator-api-result');
+            resultDiv.innerHTML = '<span class="info">Testing...</span>';
+            
+            try {
+                // Test getting a non-existent creator
+                const response = await fetch(`${API_BASE_URL}/api/creators/0xtest123`);
+                const data = await response.json();
+                
+                if (response.status === 404 && data.error === 'Creator not found') {
+                    resultDiv.innerHTML = '<span class="success">✅ Creator API working correctly (404 for non-existent creator)</span>';
+                } else {
+                    resultDiv.innerHTML = `<span class="error">❌ Unexpected response: ${JSON.stringify(data)}</span>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<span class="error">❌ Error: ${error.message}</span>`;
+            }
+        }
+
+        async function testGetOrCreateCreator() {
+            const resultDiv = document.getElementById('get-create-result');
+            resultDiv.innerHTML = '<span class="info">Testing...</span>';
+            
+            const testWallet = '0xtest' + Date.now();
+            const testUsername = 'testuser' + Date.now();
+            
+            try {
+                // First try to get (should fail)
+                let response = await fetch(`${API_BASE_URL}/api/creators/${testWallet}`);
+                let data = await response.json();
+                
+                if (response.status !== 404) {
+                    resultDiv.innerHTML = `<span class="error">❌ Expected 404, got: ${response.status}</span>`;
+                    return;
+                }
+                
+                // Now create the creator
+                response = await fetch(`${API_BASE_URL}/api/creators`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        wallet_address: testWallet,
+                        username: testUsername,
+                        bio: 'Test creator for debugging'
+                    })
+                });
+                
+                data = await response.json();
+                
+                if (response.status === 201) {
+                    // Now try to get the creator
+                    response = await fetch(`${API_BASE_URL}/api/creators/${testWallet}`);
+                    data = await response.json();
+                    
+                    if (response.status === 200) {
+                        resultDiv.innerHTML = '<span class="success">✅ Get or Create Creator flow working correctly</span>';
+                    } else {
+                        resultDiv.innerHTML = `<span class="error">❌ Failed to retrieve created creator: ${response.status}</span>`;
+                    }
+                } else {
+                    resultDiv.innerHTML = `<span class="error">❌ Failed to create creator: ${JSON.stringify(data)}</span>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<span class="error">❌ Error: ${error.message}</span>`;
+            }
+        }
+
+        async function testFrontendProfile() {
+            const resultDiv = document.getElementById('frontend-result');
+            resultDiv.innerHTML = '<span class="info">Testing frontend profile page...</span>';
+            
+            try {
+                // Try to access the creator profile page
+                const response = await fetch('http://localhost:8080/creator');
+                
+                if (response.ok) {
+                    const html = await response.text();
+                    if (html.includes('Creator Profile') || html.includes('creator')) {
+                        resultDiv.innerHTML = '<span class="success">✅ Frontend creator page accessible</span>';
+                    } else {
+                        resultDiv.innerHTML = '<span class="error">❌ Frontend page loaded but may not contain creator content</span>';
+                    }
+                } else {
+                    resultDiv.innerHTML = `<span class="error">❌ Frontend page not accessible: ${response.status}</span>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<span class="error">❌ Error accessing frontend: ${error.message}</span>`;
+            }
+        }
+
+        // Auto-run basic tests
+        window.onload = function() {
+            testCreatorAPI();
+        };
+    </script>
+</body>
+</html>

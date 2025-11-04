@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Locking Test - Comprehensive</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            color: white;
+            min-height: 100vh;
+        }
+        
+        .test-header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+        }
+        
+        .test-scenario {
+            margin: 20px 0;
+            padding: 20px;
+            border: 2px solid #333;
+            border-radius: 10px;
+            background: rgba(0, 0, 0, 0.3);
+        }
+        
+        .test-scenario.active {
+            border-color: #00ff88;
+            box-shadow: 0 0 10px rgba(0, 255, 136, 0.3);
+        }
+        
+        .scenario-title {
+            font-size: 1.2em;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #00ff88;
+        }
+        
+        .scenario-description {
+            margin-bottom: 15px;
+            color: #ccc;
+        }
+        
+        .test-controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+        
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        
+        .control-group label {
+            font-size: 0.9em;
+            color: #aaa;
+        }
+        
+        button {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary {
+            background: #00ff88;
+            color: #000;
+        }
+        
+        .btn-primary:hover {
+            background: #00cc6a;
+            transform: translateY(-2px);
+        }
+        
+        .btn-secondary {
+            background: #333;
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background: #555;
+        }
+        
+        .btn-danger {
+            background: #ff4444;
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background: #cc3333;
+        }
+        
+        .status-display {
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-weight: bold;
+        }
+        
+        .status-connected {
+            background: rgba(0, 255, 136, 0.2);
+            border: 1px solid #00ff88;
+            color: #00ff88;
+        }
+        
+        .status-disconnected {
+            background: rgba(255, 68, 68, 0.2);
+            border: 1px solid #ff4444;
+            color: #ff4444;
+        }
+        
+        .video-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .video-card {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 15px;
+            position: relative;
+            transition: all 0.3s ease;
+        }
+        
+        .video-card.locked {
+            opacity: 0.6;
+            border: 2px solid #ff4444;
+        }
+        
+        .video-card.unlocked {
+            border: 2px solid #00ff88;
+        }
+        
+        .video-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
+        }
+        
+        .video-title {
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #00ff88;
+        }
+        
+        .video-info {
+            font-size: 0.9em;
+            color: #ccc;
+            margin-bottom: 10px;
+        }
+        
+        .lock-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            border-radius: 10px;
+            color: #ff4444;
+        }
+        
+        .lock-icon {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+        
+        .test-results {
+            margin-top: 30px;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 10px;
+        }
+        
+        .result-item {
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 5px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .result-pass {
+            background: rgba(0, 255, 136, 0.2);
+            border-left: 4px solid #00ff88;
+        }
+        
+        .result-fail {
+            background: rgba(255, 68, 68, 0.2);
+            border-left: 4px solid #ff4444;
+        }
+        
+        .result-pending {
+            background: rgba(255, 193, 7, 0.2);
+            border-left: 4px solid #ffc107;
+        }
+        
+        @media (max-width: 768px) {
+            .test-controls {
+                flex-direction: column;
+            }
+            
+            .video-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="test-header">
+        <h1>🔒 Video Locking Test Suite</h1>
+        <p>Comprehensive testing for wallet connection and credit-based video locking</p>
+    </div>
+
+    <!-- Test Scenario 1: No Wallet Connected -->
+    <div class="test-scenario" id="scenario-1">
+        <div class="scenario-title">📱 Scenario 1: No Wallet Connected</div>
+        <div class="scenario-description">
+            Test that all videos are locked when no wallet is connected to the application.
+        </div>
+        
+        <div class="test-controls">
+            <button class="btn-danger" onclick="disconnectWallet()">Disconnect Wallet</button>
+            <button class="btn-primary" onclick="runScenario1()">Run Test</button>
+        </div>
+        
+        <div class="status-display" id="wallet-status-1">
+            <span id="wallet-connection-1">❌ Wallet: Disconnected</span>
+            <span id="credit-status-1">💰 Credits: N/A</span>
+        </div>
+    </div>
+
+    <!-- Test Scenario 2: Wallet Connected, 0 Credits -->
+    <div class="test-scenario" id="scenario-2">
+        <div class="scenario-title">💳 Scenario 2: Wallet Connected, 0 Credits</div>
+        <div class="scenario-description">
+            Test that all videos remain locked when wallet is connected but user has 0 credits.
+        </div>
+        
+        <div class="test-controls">
+            <button class="btn-secondary" onclick="connectWallet()">Connect Wallet</button>
+            <button class="btn-secondary" onclick="setCredits(0)">Set Credits to 0</button>
+            <button class="btn-primary" onclick="runScenario2()">Run Test</button>
+        </div>
+        
+        <div class="status-display" id="wallet-status-2">
+            <span id="wallet-connection-2">❌ Wallet: Disconnected</span>
+            <span id="credit-status-2">💰 Credits: 0</span>
+        </div>
+    </div>
+
+    <!-- Test Scenario 3: Wallet Connected, Credits >= 1 -->
+    <div class="test-scenario" id="scenario-3">
+        <div class="scenario-title">✅ Scenario 3: Wallet Connected, Credits ≥ 1</div>
+        <div class="scenario-description">
+            Test that videos are unlocked when wallet is connected and user has 1 or more credits.
+        </div>
+        
+        <div class="test-controls">
+            <button class="btn-secondary" onclick="connectWallet()">Connect Wallet</button>
+            <div class="control-group">
+                <label>Set Credits:</label>
+                <div>
+                    <button class="btn-secondary" onclick="setCredits(1)">1 Credit</button>
+                    <button class="btn-secondary" onclick="setCredits(5)">5 Credits</button>
+                    <button class="btn-secondary" onclick="setCredits(10)">10 Credits</button>
+                </div>
+            </div>
+            <button class="btn-primary" onclick="runScenario3()">Run Test</button>
+        </div>
+        
+        <div class="status-display" id="wallet-status-3">
+            <span id="wallet-connection-3">❌ Wallet: Disconnected</span>
+            <span id="credit-status-3">💰 Credits: 0</span>
+        </div>
+    </div>
+
+    <!-- Video Grid for Testing -->
+    <div class="video-grid" id="video-grid">
+        <!-- Videos will be populated by JavaScript -->
+    </div>
+
+    <!-- Test Results -->
+    <div class="test-results">
+        <h3>📊 Test Results</h3>
+        <div id="test-results-container">
+            <div class="result-item result-pending">
+                <span>Scenario 1: No Wallet - All Videos Locked</span>
+                <span id="result-1">⏳ Pending</span>
+            </div>
+            <div class="result-item result-pending">
+                <span>Scenario 2: 0 Credits - All Videos Locked</span>
+                <span id="result-2">⏳ Pending</span>
+            </div>
+            <div class="result-item result-pending">
+                <span>Scenario 3: ≥1 Credits - Videos Unlocked</span>
+                <span id="result-3">⏳ Pending</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Mock wallet and credit state
+        let mockWalletConnected = false;
+        let mockCredits = 0;
+        
+        // Sample video data
+        const sampleVideos = [
+            { id: 1, title: "Cyberpunk Adventure", category: "Action", duration: 120, price: 1 },
+            { id: 2, title: "Digital Dreams", category: "Sci-Fi", duration: 95, price: 1 },
+            { id: 3, title: "Neon Nights", category: "Thriller", duration: 110, price: 1 },
+            { id: 4, title: "Virtual Reality", category: "Tech", duration: 85, price: 1 }
+        ];
+
+        function initializeVideoGrid() {
+            const videoGrid = document.getElementById('video-grid');
+            videoGrid.innerHTML = '';
+            
+            sampleVideos.forEach(video => {
+                const isLocked = !mockWalletConnected || mockCredits < 1;
+                
+                const videoCard = document.createElement('div');
+                videoCard.className = `video-card ${isLocked ? 'locked' : 'unlocked'}`;
+                videoCard.innerHTML = `
+                    <div class="video-title">${video.title}</div>
+                    <div class="video-info">
+                        Category: ${video.category}<br>
+                        Duration: ${video.duration}s<br>
+                        Price: ${video.price} credit
+                    </div>
+                    ${isLocked ? `
+                        <div class="lock-overlay">
+                            <div class="lock-icon">🔒</div>
+                            <div>Insufficient Credits</div>
+                            <div style="font-size: 0.8em; margin-top: 5px;">
+                                ${!mockWalletConnected ? 'Connect wallet first' : 'Need more credits'}
+                            </div>
+                        </div>
+                    ` : ''}
+                `;
+                
+                videoGrid.appendChild(videoCard);
+            });
+        }
+
+        function updateWalletStatus() {
+            for (let i = 1; i <= 3; i++) {
+                const walletEl = document.getElementById(`wallet-connection-${i}`);
+                const creditEl = document.getElementById(`credit-status-${i}`);
+                const statusEl = document.getElementById(`wallet-status-${i}`);
+                
+                walletEl.textContent = mockWalletConnected ? '✅ Wallet: Connected' : '❌ Wallet: Disconnected';
+                creditEl.textContent = `💰 Credits: ${mockWalletConnected ? mockCredits : 'N/A'}`;
+                
+                statusEl.className = `status-display ${mockWalletConnected ? 'status-connected' : 'status-disconnected'}`;
+            }
+            
+            initializeVideoGrid();
+        }
+
+        function connectWallet() {
+            mockWalletConnected = true;
+            updateWalletStatus();
+            console.log('Mock wallet connected');
+        }
+
+        function disconnectWallet() {
+            mockWalletConnected = false;
+            mockCredits = 0;
+            updateWalletStatus();
+            console.log('Mock wallet disconnected');
+        }
+
+        function setCredits(amount) {
+            if (mockWalletConnected) {
+                mockCredits = amount;
+                updateWalletStatus();
+                console.log(`Mock credits set to: ${amount}`);
+            } else {
+                alert('Connect wallet first!');
+            }
+        }
+
+        function runScenario1() {
+            console.log('Running Scenario 1: No Wallet Connected');
+            disconnectWallet();
+            
+            // Check if all videos are locked
+            const lockedVideos = document.querySelectorAll('.video-card.locked').length;
+            const totalVideos = sampleVideos.length;
+            
+            const passed = lockedVideos === totalVideos;
+            updateTestResult(1, passed);
+            
+            document.getElementById('scenario-1').classList.add('active');
+            setTimeout(() => document.getElementById('scenario-1').classList.remove('active'), 3000);
+        }
+
+        function runScenario2() {
+            console.log('Running Scenario 2: Wallet Connected, 0 Credits');
+            connectWallet();
+            setCredits(0);
+            
+            // Check if all videos are locked
+            const lockedVideos = document.querySelectorAll('.video-card.locked').length;
+            const totalVideos = sampleVideos.length;
+            
+            const passed = lockedVideos === totalVideos;
+            updateTestResult(2, passed);
+            
+            document.getElementById('scenario-2').classList.add('active');
+            setTimeout(() => document.getElementById('scenario-2').classList.remove('active'), 3000);
+        }
+
+        function runScenario3() {
+            console.log('Running Scenario 3: Wallet Connected, Credits >= 1');
+            connectWallet();
+            setCredits(5); // Set to 5 credits for testing
+            
+            // Check if all videos are unlocked
+            const unlockedVideos = document.querySelectorAll('.video-card.unlocked').length;
+            const totalVideos = sampleVideos.length;
+            
+            const passed = unlockedVideos === totalVideos;
+            updateTestResult(3, passed);
+            
+            document.getElementById('scenario-3').classList.add('active');
+            setTimeout(() => document.getElementById('scenario-3').classList.remove('active'), 3000);
+        }
+
+        function updateTestResult(scenarioNumber, passed) {
+            const resultEl = document.getElementById(`result-${scenarioNumber}`);
+            const resultItem = resultEl.parentElement;
+            
+            if (passed) {
+                resultEl.textContent = '✅ PASS';
+                resultItem.className = 'result-item result-pass';
+            } else {
+                resultEl.textContent = '❌ FAIL';
+                resultItem.className = 'result-item result-fail';
+            }
+        }
+
+        // Initialize the page
+        updateWalletStatus();
+        
+        // Auto-run all scenarios for demonstration
+        setTimeout(() => {
+            console.log('Auto-running test scenarios...');
+            runScenario1();
+            setTimeout(() => runScenario2(), 2000);
+            setTimeout(() => runScenario3(), 4000);
+        }, 1000);
+    </script>
+</body>
+</html>

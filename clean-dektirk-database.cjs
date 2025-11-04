@@ -41,8 +41,8 @@ async function cleanDektirkDatabase() {
 
     // Define the correct videos we want to keep
     const correctVideos = [
-      { title: 'Introduction to AI Agents', videoUrl: '/videos/Vid1.mp4' },
-      { title: 'DeFi Fundamentals', videoUrl: '/videos/Vid2.mp4' },
+      { title: 'Advanced Blockchain Architecture', videoUrl: '/videos/Vid3.mp4' },
+    { title: 'NFT Marketplace Development', videoUrl: '/videos/Vid4.mp4' },
       { title: 'Blockchain Basics', videoUrl: '/videos/Vid3.mp4' },
       { title: 'Web3 Security Fundamentals', videoUrl: '/videos/Vid4.mp4' }
     ];

@@ -43,6 +43,7 @@ const CreatorProfile: React.FC = () => {
   const [creator, setCreator] = useState<ICreator | null>(null);
   const [creatorLoading, setCreatorLoading] = useState(true);
   const { toast } = useToast();
+  const [activeTab, setActiveTab] = useState<'videos' | 'upload' | 'profile'>('videos');
 
   const form = useForm<VideoUploadForm>({
     resolver: zodResolver(videoUploadSchema),
@@ -96,10 +97,24 @@ const CreatorProfile: React.FC = () => {
       try {
         const result = await getVideos();
         if (result.success) {
-          // Filter videos by creator ID
-          const userVideos = result.videos.filter((video: any) =>
-            video.creator?._id === user._id || video.creator === user._id
-          );
+          // Filter videos by creator association
+          const videos = result.data || [];
+          const userVideos = videos.filter((video: any) => {
+            // Check multiple possible creator associations
+            const creatorId = video.creator?._id;
+            const creatorWallet = video.creatorWallet;
+            const userWallet = user.walletAddress?.toLowerCase();
+            const userId = user._id;
+            
+            return (
+              creatorId === userId ||
+              creatorId === userWallet ||
+              creatorWallet === user.walletAddress ||
+              creatorWallet === userWallet ||
+              video.creator === userId ||
+              video.creator === userWallet
+            );
+          });
           setCreatorVideos(userVideos);
         }
       } catch (error) {
@@ -192,15 +207,33 @@ const CreatorProfile: React.FC = () => {
     setIsUploading(true);
 
     try {
-      // Import the createVideo API function
+      // Step 1: Upload files to server
+      const formData = new FormData();
+      formData.append('video', videoFile);
+      formData.append('thumbnail', thumbnailFile);
+
+      const uploadResponse = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const uploadResult = await uploadResponse.json();
+
+      if (!uploadResult.success) {
+        throw new Error(uploadResult.error || 'File upload failed');
+      }
+
+      const { files } = uploadResult.data;
+      const videoUrl = files.video;
+      const thumbnailUrl = files.thumbnail;
+
+      if (!videoUrl || !thumbnailUrl) {
+        throw new Error('Failed to get uploaded file URLs');
+      }
+
+      // Step 2: Create the video in the database
       const { createVideo } = await import('@/api/videos');
 
-      // In a real implementation, you would upload files to a storage service
-      // For now, we'll create placeholder URLs
-      const videoUrl = URL.createObjectURL(videoFile);
-      const thumbnailUrl = URL.createObjectURL(thumbnailFile);
-
-      // Create the video in the database
       const result = await createVideo({
         title: data.title,
         description: data.description,
@@ -214,7 +247,7 @@ const CreatorProfile: React.FC = () => {
         videoUrl: videoUrl,
         thumbnail: thumbnailUrl,
         isActive: true,
-        creatorWallet: user.walletAddress, // Use creatorWallet instead of creator ObjectId
+        creatorWallet: user.walletAddress,
         isFree: data.price === 0,
       });
 
@@ -233,9 +266,23 @@ const CreatorProfile: React.FC = () => {
         // Reload creator videos
         const videosResult = await getVideos();
         if (videosResult.success) {
-          const userVideos = videosResult.videos.filter((video: any) =>
-            video.creator?._id === user._id || video.creator === user._id
-          );
+          const videos = videosResult.data || [];
+          const userVideos = videos.filter((video: any) => {
+            // Check multiple possible creator associations
+            const creatorId = video.creator?._id;
+            const creatorWallet = video.creatorWallet;
+            const userWallet = user.walletAddress?.toLowerCase();
+            const userId = user._id;
+            
+            return (
+              creatorId === userId ||
+              creatorId === userWallet ||
+              creatorWallet === user.walletAddress ||
+              creatorWallet === userWallet ||
+              video.creator === userId ||
+              video.creator === userWallet
+            );
+          });
           setCreatorVideos(userVideos);
         }
       } else {
@@ -245,7 +292,7 @@ const CreatorProfile: React.FC = () => {
       console.error('Upload error:', error);
       toast({
         title: 'Upload failed',
-        description: 'There was an error uploading your video. Please try again.',
+        description: error instanceof Error ? error.message : 'There was an error uploading your video. Please try again.',
         variant: 'destructive',
       });
     } finally {
@@ -326,7 +373,7 @@ const CreatorProfile: React.FC = () => {
       </Card>
 
       {/* Tabs for different sections */}
-      <Tabs defaultValue="videos" className="space-y-6">
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)} className="space-y-6">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="videos">My Videos</TabsTrigger>
           <TabsTrigger value="upload">Upload Video</TabsTrigger>
@@ -352,7 +399,7 @@ const CreatorProfile: React.FC = () => {
                   <p className="text-gray-600 mb-4">
                     Start creating content by uploading your first video!
                   </p>
-                  <Button onClick={() => (document.querySelector('[value="upload"]') as HTMLElement)?.click()}>
+                  <Button onClick={() => setActiveTab('upload')}>
                     Upload Your First Video
                   </Button>
                 </div>

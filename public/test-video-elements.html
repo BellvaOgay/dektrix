@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Elements Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: white;
+        }
+        .test-section {
+            margin: 30px 0;
+            padding: 20px;
+            border: 1px solid #333;
+            border-radius: 8px;
+            background: #2a2a2a;
+        }
+        video {
+            width: 100%;
+            max-width: 400px;
+            height: auto;
+            margin: 10px 0;
+            border: 2px solid #444;
+            border-radius: 8px;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            background: #333;
+        }
+        .success { background: #2d5a2d; }
+        .error { background: #5a2d2d; }
+        .info { background: #2d4a5a; }
+        button {
+            background: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #45a049; }
+        .log {
+            background: #1a1a1a;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎥 Video Elements Test</h1>
+    
+    <div class="test-section">
+        <h2>Test 1: Direct Video Elements</h2>
+        <p>Testing direct video elements with controls</p>
+        
+        <h3>Vid3.mp4</h3>
+        <video id="direct-vid3" controls preload="metadata">
+            <source src="/videos/Vid3.mp4" type="video/mp4">
+            Your browser does not support the video tag.
+        </video>
+        <div id="direct-vid3-status" class="status">Initializing...</div>
+        
+        <h3>Vid4.mp4</h3>
+        <video id="direct-vid4" controls preload="metadata">
+            <source src="/videos/Vid4.mp4" type="video/mp4">
+            Your browser does not support the video tag.
+        </video>
+        <div id="direct-vid4-status" class="status">Initializing...</div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 2: Dynamic Video Creation</h2>
+        <p>Testing programmatically created video elements</p>
+        <button onclick="createDynamicVideo('Vid3')">Create Vid3 Element</button>
+        <button onclick="createDynamicVideo('Vid4')">Create Vid4 Element</button>
+        <div id="dynamic-container"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 3: Network Requests</h2>
+        <p>Testing direct network requests to video files</p>
+        <button onclick="testNetworkRequest('Vid3')">Test Vid3 Network</button>
+        <button onclick="testNetworkRequest('Vid4')">Test Vid4 Network</button>
+        <div id="network-results"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Console Log</h2>
+        <div id="console-log" class="log"></div>
+        <button onclick="clearLog()">Clear Log</button>
+    </div>
+
+    <script>
+        const log = (message, type = 'info') => {
+            const timestamp = new Date().toLocaleTimeString();
+            const logElement = document.getElementById('console-log');
+            const logEntry = document.createElement('div');
+            logEntry.style.color = type === 'error' ? '#ff6b6b' : type === 'success' ? '#51cf66' : '#74c0fc';
+            logEntry.textContent = `[${timestamp}] ${message}`;
+            logElement.appendChild(logEntry);
+            logElement.scrollTop = logElement.scrollHeight;
+            console.log(message);
+        };
+
+        const clearLog = () => {
+            document.getElementById('console-log').innerHTML = '';
+        };
+
+        const setupVideoEvents = (video, statusId, videoName) => {
+            const status = document.getElementById(statusId);
+            
+            video.addEventListener('loadstart', () => {
+                status.textContent = `${videoName}: Loading started...`;
+                status.className = 'status info';
+                log(`${videoName}: Load started`);
+            });
+            
+            video.addEventListener('loadedmetadata', () => {
+                status.textContent = `${videoName}: Metadata loaded - ${video.duration.toFixed(2)}s, ${video.videoWidth}x${video.videoHeight}`;
+                status.className = 'status success';
+                log(`${videoName}: Metadata loaded - Duration: ${video.duration}s, Size: ${video.videoWidth}x${video.videoHeight}`);
+            });
+            
+            video.addEventListener('canplay', () => {
+                log(`${videoName}: Can play`);
+            });
+            
+            video.addEventListener('canplaythrough', () => {
+                log(`${videoName}: Can play through`);
+            });
+            
+            video.addEventListener('error', (e) => {
+                const error = e.target.error;
+                const errorMessage = error ? `Code: ${error.code}, Message: ${error.message}` : 'Unknown error';
+                status.textContent = `${videoName}: Error - ${errorMessage}`;
+                status.className = 'status error';
+                log(`${videoName}: Error - ${errorMessage}`, 'error');
+            });
+
+            video.addEventListener('play', () => {
+                log(`${videoName}: Started playing`);
+            });
+
+            video.addEventListener('pause', () => {
+                log(`${videoName}: Paused`);
+            });
+        };
+
+        const createDynamicVideo = (videoName) => {
+            const container = document.getElementById('dynamic-container');
+            
+            const videoDiv = document.createElement('div');
+            videoDiv.style.margin = '20px 0';
+            
+            const title = document.createElement('h3');
+            title.textContent = `Dynamic ${videoName}.mp4`;
+            videoDiv.appendChild(title);
+            
+            const video = document.createElement('video');
+            video.controls = true;
+            video.preload = 'metadata';
+            video.style.width = '100%';
+            video.style.maxWidth = '400px';
+            video.src = `/videos/${videoName}.mp4`;
+            
+            const status = document.createElement('div');
+            status.className = 'status';
+            status.textContent = 'Creating...';
+            const statusId = `dynamic-${videoName.toLowerCase()}-status`;
+            status.id = statusId;
+            
+            videoDiv.appendChild(video);
+            videoDiv.appendChild(status);
+            container.appendChild(videoDiv);
+            
+            setupVideoEvents(video, statusId, `Dynamic ${videoName}`);
+            
+            log(`Created dynamic video element for ${videoName}`);
+        };
+
+        const testNetworkRequest = async (videoName) => {
+            const resultsDiv = document.getElementById('network-results');
+            const url = `/videos/${videoName}.mp4`;
+            
+            try {
+                log(`Testing network request to ${url}`);
+                
+                const response = await fetch(url, { method: 'HEAD' });
+                
+                const resultDiv = document.createElement('div');
+                resultDiv.className = response.ok ? 'status success' : 'status error';
+                resultDiv.innerHTML = `
+                    <strong>${videoName} Network Test:</strong><br>
+                    Status: ${response.status} ${response.statusText}<br>
+                    Content-Type: ${response.headers.get('content-type')}<br>
+                    Content-Length: ${response.headers.get('content-length')} bytes<br>
+                    Accept-Ranges: ${response.headers.get('accept-ranges')}<br>
+                    Last-Modified: ${response.headers.get('last-modified')}
+                `;
+                
+                resultsDiv.appendChild(resultDiv);
+                
+                log(`${videoName} network test: ${response.status} ${response.statusText}`, response.ok ? 'success' : 'error');
+                
+            } catch (error) {
+                const resultDiv = document.createElement('div');
+                resultDiv.className = 'status error';
+                resultDiv.innerHTML = `<strong>${videoName} Network Error:</strong><br>${error.message}`;
+                resultsDiv.appendChild(resultDiv);
+                
+                log(`${videoName} network error: ${error.message}`, 'error');
+            }
+        };
+
+        // Initialize direct video tests
+        document.addEventListener('DOMContentLoaded', () => {
+            log('Page loaded, initializing video tests');
+            
+            setupVideoEvents(document.getElementById('direct-vid3'), 'direct-vid3-status', 'Direct Vid3');
+            setupVideoEvents(document.getElementById('direct-vid4'), 'direct-vid4-status', 'Direct Vid4');
+            
+            log('Video event listeners set up');
+        });
+    </script>
+</body>
+</html>

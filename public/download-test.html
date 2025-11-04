@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Download Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: white;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #333;
+            border-radius: 8px;
+            background: #2a2a2a;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            background: #333;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .success { background: #2d5a2d; }
+        .error { background: #5a2d2d; }
+        button {
+            background: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #45a049; }
+        a {
+            color: #4CAF50;
+            text-decoration: none;
+            padding: 10px;
+            border: 1px solid #4CAF50;
+            border-radius: 5px;
+            display: inline-block;
+            margin: 5px;
+        }
+        a:hover { background: #4CAF50; color: white; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Download Test</h1>
+    
+    <div class="test-section">
+        <h2>Direct Download Links</h2>
+        <p>These links should trigger direct downloads:</p>
+        <a href="/videos/Vid3.mp4" download="Vid3.mp4">Download Vid3.mp4</a>
+        <a href="/videos/Vid4.mp4" download="Vid4.mp4">Download Vid4.mp4</a>
+    </div>
+
+    <div class="test-section">
+        <h2>Fetch and Download Test</h2>
+        <button onclick="testFetchDownload('Vid3')">Test Fetch Vid3</button>
+        <button onclick="testFetchDownload('Vid4')">Test Fetch Vid4</button>
+        <div id="fetch-status" class="status">Ready to test</div>
+    </div>
+
+    <div class="test-section">
+        <h2>Stream Test</h2>
+        <button onclick="testStream('Vid3')">Test Stream Vid3</button>
+        <button onclick="testStream('Vid4')">Test Stream Vid4</button>
+        <div id="stream-status" class="status">Ready to test</div>
+    </div>
+
+    <script>
+        async function testFetchDownload(videoName) {
+            const status = document.getElementById('fetch-status');
+            const url = `/videos/${videoName}.mp4`;
+            
+            try {
+                status.textContent = `Fetching ${videoName}...`;
+                status.className = 'status';
+                
+                const response = await fetch(url);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const contentLength = response.headers.get('content-length');
+                const contentType = response.headers.get('content-type');
+                
+                status.textContent = `✅ Fetch successful for ${videoName} - Size: ${contentLength} bytes, Type: ${contentType}`;
+                status.className = 'status success';
+                
+                // Try to read the first few bytes
+                const reader = response.body.getReader();
+                const { value, done } = await reader.read();
+                
+                if (value) {
+                    status.textContent += ` - First chunk: ${value.length} bytes`;
+                }
+                
+                reader.releaseLock();
+                
+            } catch (error) {
+                status.textContent = `❌ Fetch failed for ${videoName}: ${error.message}`;
+                status.className = 'status error';
+                console.error('Fetch error:', error);
+            }
+        }
+
+        async function testStream(videoName) {
+            const status = document.getElementById('stream-status');
+            const url = `/videos/${videoName}.mp4`;
+            
+            try {
+                status.textContent = `Streaming ${videoName}...`;
+                status.className = 'status';
+                
+                const response = await fetch(url);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const reader = response.body.getReader();
+                let totalBytes = 0;
+                let chunks = 0;
+                
+                while (true) {
+                    const { value, done } = await reader.read();
+                    
+                    if (done) break;
+                    
+                    totalBytes += value.length;
+                    chunks++;
+                    
+                    if (chunks % 10 === 0) {
+                        status.textContent = `Streaming ${videoName}... ${totalBytes} bytes in ${chunks} chunks`;
+                    }
+                    
+                    // Stop after reading a reasonable amount
+                    if (totalBytes > 100000) {
+                        reader.cancel();
+                        break;
+                    }
+                }
+                
+                status.textContent = `✅ Stream test successful for ${videoName} - Read ${totalBytes} bytes in ${chunks} chunks`;
+                status.className = 'status success';
+                
+            } catch (error) {
+                status.textContent = `❌ Stream failed for ${videoName}: ${error.message}`;
+                status.className = 'status error';
+                console.error('Stream error:', error);
+            }
+        }
+
+        // Monitor all requests
+        const originalFetch = window.fetch;
+        window.fetch = function(...args) {
+            console.log('🌐 Fetch request:', args[0]);
+            const startTime = Date.now();
+            
+            return originalFetch.apply(this, args)
+                .then(response => {
+                    const duration = Date.now() - startTime;
+                    console.log(`✅ Fetch response: ${response.status} ${response.url} (${duration}ms)`);
+                    return response;
+                })
+                .catch(error => {
+                    const duration = Date.now() - startTime;
+                    console.error(`❌ Fetch error: ${error.message} (${duration}ms)`);
+                    throw error;
+                });
+        };
+    </script>
+</body>
+</html>

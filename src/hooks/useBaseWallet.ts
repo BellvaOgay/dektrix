@@ -78,6 +78,7 @@ const suppressIndexedDBErrors = () => {
 };
 
 export const useBaseWallet = (): UseBaseWalletReturn => {
+  const isDev = import.meta.env?.DEV === true;
   const [walletState, setWalletState] = useState<WalletState>({
     isConnected: false,
     address: null,
@@ -282,10 +283,50 @@ export const useBaseWallet = (): UseBaseWalletReturn => {
       }
     } catch (error) {
       console.error('❌ Error in createOrGetUser:', error);
-      setWalletState(prev => ({
-        ...prev,
-        error: `Database error: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      }));
+      // In dev mode, create a temporary in-memory user so the app remains usable
+      if (isDev && walletAddress) {
+        console.warn('🧪 DEV: Falling back to temporary user due to API error');
+        const tempUser = {
+          _id: walletAddress.toLowerCase(), // Add _id field for consistency
+          walletAddress: walletAddress.toLowerCase(),
+          username: `user_${walletAddress.slice(-8)}`,
+          displayName: `User ${walletAddress.slice(-8)}`,
+          avatar: '',
+          bio: '',
+          viewCredits: 3,
+          totalTipsEarned: 0,
+          totalTipsSpent: 0,
+          videosWatched: [],
+          videosUnlocked: [],
+          favoriteCategories: [],
+          isActive: true,
+          lastLoginAt: new Date().toISOString(),
+          userContainer: {
+            purchasedVideos: [],
+            uploadedVideos: [],
+            watchHistory: [],
+            preferences: {
+              autoPlay: true,
+              notifications: true,
+              theme: 'auto'
+            }
+          }
+        };
+
+        setWalletState(prev => ({
+          ...prev,
+          isConnected: true,
+          address: walletAddress,
+          user: tempUser,
+          isNewUser: false,
+          error: `DEV fallback user initialized: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        }));
+      } else {
+        setWalletState(prev => ({
+          ...prev,
+          error: `Database error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        }));
+      }
     }
   }, [walletState.isConnected, walletState.address, walletState.user, walletState.error]);
 
@@ -426,10 +467,21 @@ export const useBaseWallet = (): UseBaseWalletReturn => {
 
     } catch (error: any) {
       console.error('❌ Error refreshing user data:', error);
-      setWalletState(prev => ({
-        ...prev,
-        error: `Failed to refresh user data: ${error.message}`
-      }));
+      if (isDev && walletState.address) {
+        console.warn('🧪 DEV: Keeping existing temporary user after refresh failure');
+        setWalletState(prev => ({
+          ...prev,
+          // preserve any existing temp user; ensure connected state remains
+          isConnected: true,
+          address: walletState.address,
+          error: `Failed to refresh user data (dev fallback active): ${error.message}`
+        }));
+      } else {
+        setWalletState(prev => ({
+          ...prev,
+          error: `Failed to refresh user data: ${error.message}`
+        }));
+      }
     }
   }, [walletState.address, createOrGetUser]);
 

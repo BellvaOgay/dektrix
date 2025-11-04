@@ -40,34 +40,6 @@ const Video = mongoose.model('Video', VideoSchema);
 // Sample videos to add
 const sampleVideos = [
   {
-    title: "Introduction to DeFi Protocols",
-    description: "Learn the basics of decentralized finance and how protocols work",
-    thumbnail: "/placeholder.svg",
-    videoUrl: "/videos/Vid1.mp4",
-    duration: 180,
-    category: "DeFi",
-    tags: ["defi", "protocols", "beginner"],
-    price: 100000, // 0.1 USDC (6 decimals)
-    priceDisplay: "0.1 USDC",
-    difficulty: "Beginner",
-    featured: true,
-    isFree: false
-  },
-  {
-    title: "Smart Contract Security Best Practices",
-    description: "Essential security practices for writing secure smart contracts",
-    thumbnail: "/placeholder.svg",
-    videoUrl: "/videos/vid2.mp4",
-    duration: 240,
-    category: "Smart Contracts",
-    tags: ["security", "smart-contracts", "best-practices"],
-    price: 100000, // 0.1 USDC
-    priceDisplay: "0.1 USDC",
-    difficulty: "Intermediate",
-    featured: false,
-    isFree: false
-  },
-  {
     title: "Free: What is Blockchain?",
     description: "A free introduction to blockchain technology for beginners",
     thumbnail: "/placeholder.svg",
@@ -80,20 +52,6 @@ const sampleVideos = [
     difficulty: "Beginner",
     featured: true,
     isFree: true // This is a free video
-  },
-  {
-    title: "NFT Marketplace Development",
-    description: "Build your own NFT marketplace from scratch",
-    thumbnail: "/placeholder.svg",
-    videoUrl: "/videos/Vid1.mp4",
-    duration: 300,
-    category: "NFTs",
-    tags: ["nft", "marketplace", "development"],
-    price: 100000, // 0.1 USDC
-    priceDisplay: "0.1 USDC",
-    difficulty: "Advanced",
-    featured: false,
-    isFree: false
   }
 ];
 

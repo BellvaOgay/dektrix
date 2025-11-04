@@ -18,6 +18,7 @@ export interface IVideo extends Document {
   totalViews: number;
   totalUnlocks: number;
   totalTipsEarned: number;
+  playCount: number; // Track how many times video has been played
   isActive: boolean;
   featured: boolean;
   isFree: boolean; // true for free content, false for premium content
@@ -102,6 +103,11 @@ const VideoSchema = new Schema<IVideo>({
     min: 0
   },
   totalTipsEarned: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  playCount: {
     type: Number,
     default: 0,
     min: 0

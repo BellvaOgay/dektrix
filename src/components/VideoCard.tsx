@@ -1,16 +1,17 @@
 import { useState, useRef, useEffect } from "react";
-import { Play, Lock, Zap, Eye } from "lucide-react";
+import { Play, Lock, Zap, Eye, Maximize } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { calculateBasePayPrice, isBasePayEnabled } from "@/lib/utils";
-import { deductCreditOnPlay } from "@/api/videos";
+import { deductCreditOnPlay, incrementPlayCount } from "@/api/videos";
 import { useBaseWallet } from "@/hooks/useBaseWallet";
 import { useVideoPlayer } from "@/contexts/VideoPlayerContext";
+import { usePortraitFullscreen } from "@/hooks/usePortraitFullscreen";
 
 interface VideoCardProps {
   title: string;
-  topic: string;
-  duration: string;
-  thumbnail: string;
+  topic?: string;
+  duration: number;
+  thumbnail?: string;
   onClick?: () => void;
   description?: string;
   src?: string;
@@ -21,7 +22,9 @@ interface VideoCardProps {
   onUnlock?: (paymentMethod: 'crypto' | 'basepay') => void;
   videoId?: string; // Video ID for credit deduction
   onCreditUpdate?: (remainingCredits: number) => void; // Callback for credit updates
+  onViewUpdate?: () => void; // Callback for view count updates
   totalViews?: number; // Total view count for the video
+  playCount?: number; // Play count for the video
 }
 
 const VideoCard = ({
@@ -39,15 +42,17 @@ const VideoCard = ({
   onUnlock,
   videoId,
   onCreditUpdate,
-  totalViews = 0
+  totalViews = 0,
+  playCount = 0
 }: VideoCardProps) => {
   const [isHovered, setIsHovered] = useState(false);
   const [showPaymentOptions, setShowPaymentOptions] = useState(false);
-  const [hasDeductedCredit, setHasDeductedCredit] = useState(false);
+  // Remove hasDeductedCredit state as we want to deduct credits on every play
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const { user: walletUser } = useBaseWallet();
   const { currentPlayingVideo, setCurrentPlayingVideo, registerVideo, unregisterVideo } = useVideoPlayer();
+  const { togglePortraitFullscreen } = usePortraitFullscreen();
 
   const basePayEnabled = isBasePayEnabled();
   const basePayPricing = price > 0 ? calculateBasePayPrice(price) : null;
@@ -65,20 +70,26 @@ const VideoCard = ({
 
   // Handle credit deduction when play button is clicked
   const handleCreditDeduction = async () => {
-    if (!walletUser?.walletAddress || !videoId || hasDeductedCredit) {
-      return true; // Allow playback if already deducted or no wallet
+    if (!walletUser?.walletAddress || !videoId) {
+      return true; // Allow playback if no wallet or videoId
     }
 
     try {
       const result = await deductCreditOnPlay(walletUser.walletAddress, videoId);
 
       if (result.success) {
-        setHasDeductedCredit(true);
         console.log('Credit deducted successfully:', result.data.message);
 
         // Update parent component with new credit balance
         if (onCreditUpdate && result.data.remainingCredits !== undefined) {
           onCreditUpdate(result.data.remainingCredits);
+        }
+
+        // If credits reach 0 after this deduction, show purchase prompt immediately
+        if (result.data.remainingCredits === 0) {
+          setTimeout(() => {
+            setShowPaymentOptions(true);
+          }, 1000); // Small delay to let the video start and user see the credit deduction
         }
 
         // Trigger a refresh of user data to update credits in navbar
@@ -106,6 +117,18 @@ const VideoCard = ({
     // Set this video as the currently playing video
     if (videoId) {
       setCurrentPlayingVideo(videoId);
+      
+      // Increment play count when video starts playing
+      try {
+        const result = await incrementPlayCount(videoId);
+        if (result.success) {
+          console.log(`Play count incremented for video ${videoId}:`, result.data.playCount);
+        } else {
+          console.error('Failed to increment play count:', result.error);
+        }
+      } catch (error) {
+        console.error('Error incrementing play count:', error);
+      }
     }
     console.log('Video started playing for:', title);
   };
@@ -176,9 +199,9 @@ const VideoCard = ({
       {showPaymentOptions && (
         <div className="absolute inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center rounded-2xl">
           <div className="bg-card p-6 rounded-xl border border-border max-w-sm w-full mx-4">
-            <h3 className="text-lg font-bold mb-4 text-center">Purchase Credits</h3>
+            <h3 className="text-lg font-bold mb-4 text-center">Credits Needed</h3>
             <p className="text-sm text-muted-foreground mb-6 text-center">
-              You need credits to watch videos. Purchase 10 views for 1 USDC.
+              You need credits to watch videos. Each video view costs 1 credit.
             </p>
 
             <div className="space-y-3">
@@ -194,8 +217,8 @@ const VideoCard = ({
                 <div className="flex items-center gap-3">
                   <Zap className="w-5 h-5 text-primary" />
                   <div className="text-center">
-                    <div className="font-medium">Buy 10 Views</div>
-                    <div className="text-sm text-muted-foreground">1 USDC</div>
+                    <div className="font-medium">Purchase Credits</div>
+                    <div className="text-sm text-muted-foreground">1 USDC = 10 Credits</div>
                   </div>
                 </div>
               </button>
@@ -214,25 +237,42 @@ const VideoCard = ({
       <div className="relative aspect-[9/16] bg-gradient-to-br from-primary/20 to-accent/20">
         {/* Render playable video when src is available AND user has credits */}
         {src && !isLocked ? (
-          <video
-            ref={videoRef}
-            className="absolute inset-0 w-full h-full object-cover"
-            src={src}
-            controls
-            preload="metadata"
-            poster={thumbnail}
-            aria-label={`Video player for ${title}`}
-            data-video-id={videoId}
-            onPlay={handleVideoPlay}
-            onPause={handleVideoPause}
-            onError={(e) => {
-              // Silently handle video load errors to reduce console spam
-              // The error suppression is handled globally in useBaseWallet
-            }}
-            onLoadStart={() => {
-              console.log('Video load started for', title, 'with src:', src);
-            }}
-          />
+          <div className="relative w-full h-full">
+            <video
+              ref={videoRef}
+              className="absolute inset-0 w-full h-full object-cover"
+              src={src}
+              controls
+              preload="metadata"
+              poster={thumbnail}
+              aria-label={`Video player for ${title}`}
+              data-video-id={videoId}
+              onPlay={handleVideoPlay}
+              onPause={handleVideoPause}
+              onError={(e) => {
+                // Silently handle video load errors to reduce console spam
+                // The error suppression is handled globally in useBaseWallet
+              }}
+              onLoadStart={() => {
+                console.log('Video load started for', title, 'with src:', src);
+              }}
+            />
+            
+            {/* Fullscreen Button Overlay */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (videoRef.current) {
+                  togglePortraitFullscreen(videoRef.current);
+                }
+              }}
+              className="absolute top-3 left-3 bg-black/50 hover:bg-black/70 text-white p-2 rounded-full transition-all duration-200 hover:scale-110 z-10"
+              aria-label="Toggle fullscreen"
+              title="Toggle fullscreen"
+            >
+              <Maximize className="w-4 h-4" />
+            </button>
+          </div>
         ) : (
           <>
             {/* Thumbnail Image */}
@@ -248,10 +288,10 @@ const VideoCard = ({
               <div className="absolute inset-0 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center z-20 rounded-lg">
                 <Lock className="w-8 h-8 text-white mb-2" />
                 <p className="text-white text-sm font-medium mb-3 text-center px-4">
-                  No credits remaining
+                  Insufficient credits
                 </p>
                 <p className="text-white/70 text-xs mb-3 text-center px-4">
-                  Purchase more views to continue watching
+                  You need at least 1 credit to unlock videos
                 </p>
                 <button
                   onClick={(e) => {
@@ -261,7 +301,7 @@ const VideoCard = ({
                   }}
                   className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 hover:scale-105"
                 >
-                  Buy More Views
+                  Purchase Credits
                 </button>
               </div>
             )}
@@ -312,6 +352,14 @@ const VideoCard = ({
           <div className="flex items-center gap-1 text-xs text-muted-foreground">
             <Eye className="w-3 h-3" />
             <span>{totalViews.toLocaleString()} {totalViews === 1 ? 'view' : 'views'}</span>
+          </div>
+        )}
+
+        {/* Play Count Display */}
+        {playCount > 0 && (
+          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+            <Play className="w-3 h-3" />
+            <span>{playCount.toLocaleString()} {playCount === 1 ? 'play' : 'plays'}</span>
           </div>
         )}
 

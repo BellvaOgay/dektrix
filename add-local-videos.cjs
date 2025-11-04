@@ -41,22 +41,24 @@ const User = mongoose.model('User', UserSchema);
 // Local videos data
 const localVideos = [
   {
-    title: "Educational Video 1",
-    description: "First educational video from local storage. This video covers fundamental concepts and is available to all users for free learning.",
-    thumbnail: "/placeholder.svg", // Using existing placeholder
-    videoUrl: "/Vid1.mp4", // Local video file
-    duration: 300, // 5 minutes (you can adjust this)
+    title: "Advanced Blockchain Architecture",
+    description: "Deep dive into blockchain architecture and consensus mechanisms",
+    thumbnail: "/placeholder.svg",
+    videoUrl: "/Vid3.mp4", // Local video file
+    duration: 420,
     category: "Blockchain",
-    difficulty: "Beginner",
-    price: 0,
-    priceDisplay: "FREE",
-    isFree: true
+    tags: ["blockchain", "architecture", "advanced"],
+    price: 100000, // 0.1 USDC
+    priceDisplay: "0.1 USDC",
+    difficulty: "Advanced",
+    featured: true,
+    isFree: false
   },
   {
-    title: "Educational Video 2", 
-    description: "Second educational video from local storage. This video provides additional insights and practical examples for learners.",
-    thumbnail: "/placeholder.svg", // Using existing placeholder
-    videoUrl: "/vid2.mp4", // Local video file
+    title: "NFT Marketplace Development",
+    description: "Build your own NFT marketplace from scratch using modern web technologies",
+    thumbnail: "/placeholder.svg",
+    videoUrl: "/Vid4.mp4", // Local video file
     duration: 420, // 7 minutes (you can adjust this)
     category: "Web3",
     difficulty: "Beginner", 

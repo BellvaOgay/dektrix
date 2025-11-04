@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>✅ Final Video Verification</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: white;
+        }
+        .test-section {
+            margin: 30px 0;
+            padding: 20px;
+            border: 1px solid #333;
+            border-radius: 8px;
+            background: #2a2a2a;
+        }
+        video {
+            width: 100%;
+            max-width: 400px;
+            height: auto;
+            margin: 10px 0;
+            border: 2px solid #444;
+            border-radius: 8px;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            background: #333;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .success { background: #2d5a2d; }
+        .error { background: #5a2d2d; }
+        .info { background: #2d4a5a; }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 20px;
+        }
+        h1 { text-align: center; color: #4CAF50; }
+        h2 { color: #4CAF50; }
+    </style>
+</head>
+<body>
+    <h1>✅ Final Video Verification Test</h1>
+    <p style="text-align: center; font-size: 18px;">Testing all video functionality after implementing custom middleware</p>
+    
+    <div class="grid">
+        <div class="test-section">
+            <h2>🎬 Vid3.mp4 Test</h2>
+            <video id="video1" controls preload="metadata">
+                <source src="/videos/Vid3.mp4" type="video/mp4">
+                Your browser does not support the video tag.
+            </video>
+            <div id="video1-status" class="status info">Loading...</div>
+        </div>
+
+        <div class="test-section">
+            <h2>🎬 Vid4.mp4 Test</h2>
+            <video id="video2" controls preload="metadata">
+                <source src="/videos/Vid4.mp4" type="video/mp4">
+                Your browser does not support the video tag.
+            </video>
+            <div id="video2-status" class="status info">Loading...</div>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>📊 Test Results Summary</h2>
+        <div id="summary" class="status info">Running tests...</div>
+    </div>
+
+    <script>
+        let testResults = {
+            video1: { loaded: false, canPlay: false, duration: 0, error: null },
+            video2: { loaded: false, canPlay: false, duration: 0, error: null }
+        };
+
+        function updateSummary() {
+            const summary = document.getElementById('summary');
+            const total = Object.keys(testResults).length;
+            const loaded = Object.values(testResults).filter(r => r.loaded).length;
+            const playable = Object.values(testResults).filter(r => r.canPlay).length;
+            const errors = Object.values(testResults).filter(r => r.error).length;
+
+            let status = 'info';
+            let message = `📊 Results: ${loaded}/${total} loaded, ${playable}/${total} playable`;
+            
+            if (errors > 0) {
+                status = 'error';
+                message += `, ${errors} errors`;
+            } else if (loaded === total && playable === total) {
+                status = 'success';
+                message = `🎉 All tests passed! ${total}/${total} videos working perfectly`;
+            }
+
+            summary.className = `status ${status}`;
+            summary.textContent = message;
+        }
+
+        function setupVideoTest(videoId, resultKey) {
+            const video = document.getElementById(videoId);
+            const status = document.getElementById(`${videoId}-status`);
+
+            video.addEventListener('loadstart', () => {
+                status.textContent = '⏳ Loading started...';
+                status.className = 'status info';
+            });
+
+            video.addEventListener('loadedmetadata', () => {
+                testResults[resultKey].loaded = true;
+                testResults[resultKey].duration = video.duration;
+                status.textContent = `✅ Metadata loaded - Duration: ${video.duration.toFixed(2)}s, Size: ${video.videoWidth}x${video.videoHeight}`;
+                status.className = 'status success';
+                updateSummary();
+            });
+
+            video.addEventListener('canplay', () => {
+                testResults[resultKey].canPlay = true;
+                status.textContent += ' - Ready to play!';
+                updateSummary();
+            });
+
+            video.addEventListener('error', (e) => {
+                testResults[resultKey].error = e.target.error?.message || 'Unknown error';
+                status.textContent = `❌ Error: ${testResults[resultKey].error}`;
+                status.className = 'status error';
+                console.error(`${videoId} error:`, e.target.error);
+                updateSummary();
+            });
+
+            video.addEventListener('play', () => {
+                console.log(`${videoId} started playing`);
+            });
+
+            video.addEventListener('pause', () => {
+                console.log(`${videoId} paused`);
+            });
+        }
+
+        // Setup tests for both videos
+        setupVideoTest('video1', 'video1');
+        setupVideoTest('video2', 'video2');
+
+        // Initial summary update
+        updateSummary();
+
+        // Log successful middleware usage
+        console.log('🎬 Video verification test initialized');
+        console.log('📡 Custom video middleware should be handling range requests');
+        
+        // Test network requests
+        setTimeout(() => {
+            console.log('📊 Current test results:', testResults);
+        }, 5000);
+    </script>
+</body>
+</html>

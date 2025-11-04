@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useRef, ReactNode } from 'react';
+import { incrementPlayCount } from '@/api/videos';
 
 interface VideoPlayerContextType {
   currentPlayingVideo: string | null;
@@ -7,6 +8,7 @@ interface VideoPlayerContextType {
   registerVideo: (videoId: string, videoElement: HTMLVideoElement) => void;
   unregisterVideo: (videoId: string) => void;
   incrementVideoView: (videoId: string) => Promise<void>;
+  incrementVideoPlayCount: (videoId: string) => Promise<void>;
 }
 
 const VideoPlayerContext = createContext<VideoPlayerContextType | undefined>(undefined);
@@ -19,6 +21,8 @@ export const VideoPlayerProvider: React.FC<VideoPlayerProviderProps> = ({ childr
   const [currentPlayingVideo, setCurrentPlayingVideo] = useState<string | null>(null);
   const videoElementsRef = useRef<Map<string, HTMLVideoElement>>(new Map());
   const viewedVideosRef = useRef<Set<string>>(new Set());
+  const playedVideosRef = useRef<Set<string>>(new Set());
+  const API_BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined) || '';
 
   const pauseAllVideos = () => {
     videoElementsRef.current.forEach((videoElement) => {
@@ -47,7 +51,7 @@ export const VideoPlayerProvider: React.FC<VideoPlayerProviderProps> = ({ childr
     }
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/videos/${videoId}/view`, {
+      const response = await fetch(`${API_BASE}/api/videos/${videoId}/view`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -65,6 +69,25 @@ export const VideoPlayerProvider: React.FC<VideoPlayerProviderProps> = ({ childr
     }
   };
 
+  const incrementVideoPlayCount = async (videoId: string) => {
+    // Only count each video play once per session
+    if (playedVideosRef.current.has(videoId)) {
+      return;
+    }
+
+    try {
+      const result = await incrementPlayCount(videoId);
+      if (result.success) {
+        playedVideosRef.current.add(videoId);
+        console.log(`✅ Play count incremented for video: ${videoId}, new count: ${result.data.playCount}`);
+      } else {
+        console.error('Failed to increment play count:', result.error);
+      }
+    } catch (error) {
+      console.error('Error incrementing play count:', error);
+    }
+  };
+
   const handleSetCurrentPlayingVideo = (videoId: string | null) => {
     if (videoId && videoId !== currentPlayingVideo) {
       // Pause all other videos when a new one starts playing
@@ -76,6 +99,9 @@ export const VideoPlayerProvider: React.FC<VideoPlayerProviderProps> = ({ childr
       
       // Increment view count when video starts playing
       incrementVideoView(videoId);
+      
+      // Increment play count when video starts playing
+      incrementVideoPlayCount(videoId);
     }
     setCurrentPlayingVideo(videoId);
   };
@@ -87,6 +113,7 @@ export const VideoPlayerProvider: React.FC<VideoPlayerProviderProps> = ({ childr
     registerVideo,
     unregisterVideo,
     incrementVideoView,
+    incrementVideoPlayCount,
   };
 
   return (

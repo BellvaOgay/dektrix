@@ -53,8 +53,6 @@ const User = mongoose.model('User', UserSchema);
 function getVideoDuration(filename) {
   // Mock durations based on filename
   const durations = {
-    'Vid1.mp4': 300, // 5 minutes
-    'vid2.mp4': 240, // 4 minutes
     'Vid3.mp4': 420, // 7 minutes
     'Vid4.mp4': 480, // 8 minutes
   };
@@ -67,28 +65,6 @@ function generateVideoMetadata(filename, videoPath) {
   
   // Generate metadata based on filename
   const metadata = {
-    'Vid1.mp4': {
-      title: 'Introduction to DeFi Protocols',
-      description: 'Learn the fundamentals of DeFi protocols and how they work in the decentralized finance ecosystem.',
-      category: 'Generic',
-      tags: ['DeFi', 'Protocols', 'Blockchain', 'Finance'],
-      price: 100000, // 0.1 USDC
-      priceDisplay: '0.1 USDC',
-      difficulty: 'Beginner',
-      featured: true,
-      isFree: false
-    },
-    'vid2.mp4': {
-      title: 'Smart Contract Security Best Practices',
-      description: 'Essential security practices for smart contract development and deployment.',
-      category: 'Generic',
-      tags: ['Security', 'Smart Contracts', 'Best Practices', 'Development'],
-      price: 100000, // 0.1 USDC
-      priceDisplay: '0.1 USDC',
-      difficulty: 'Intermediate',
-      featured: false,
-      isFree: false
-    },
     'Vid3.mp4': {
       title: 'Advanced Blockchain Architecture',
       description: 'Deep dive into blockchain architecture, consensus mechanisms, and scalability solutions.',

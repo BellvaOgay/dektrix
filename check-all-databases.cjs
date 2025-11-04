@@ -38,16 +38,15 @@ async function checkDatabase(dbName) {
       console.log(`   ${index + 1}. ${video.title} - ${video.videoUrl}`);
     });
     
-    // Check for Vid2 and Vid4 specifically
-    const vid2Count = videos.filter(v => v.videoUrl && v.videoUrl.includes('Vid2')).length;
+    // Check for Vid3 and Vid4 specifically
+    const vid3Count = videos.filter(v => v.videoUrl && v.videoUrl.includes('Vid3')).length;
     const vid4Count = videos.filter(v => v.videoUrl && v.videoUrl.includes('Vid4')).length;
     
-    console.log(`   📹 Vid2 entries: ${vid2Count}`);
+    console.log(`   📹 Vid3 entries: ${vid3Count}`);
     console.log(`   📹 Vid4 entries: ${vid4Count}`);
     
-    await connection.close();
-    
-    return { dbName, videoCount: videos.length, vid2Count, vid4Count, videos };
+    // Return summary
+    return { dbName, videoCount: videos.length, vid3Count, vid4Count, videos };
     
   } catch (error) {
     console.error(`❌ Error checking ${dbName}:`, error.message);
@@ -78,7 +77,7 @@ async function checkAllDatabases() {
     if (result.error) {
       console.log(`❌ ${result.dbName}: Error - ${result.error}`);
     } else {
-      console.log(`✅ ${result.dbName}: ${result.videoCount} videos (Vid2: ${result.vid2Count}, Vid4: ${result.vid4Count})`);
+      console.log(`✅ ${result.dbName}: ${result.videoCount} videos (Vid3: ${result.vid3Count}, Vid4: ${result.vid4Count})`);
     }
   });
   

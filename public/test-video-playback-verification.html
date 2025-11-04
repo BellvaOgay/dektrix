@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Playback Verification Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: white;
+        }
+        .test-container {
+            margin-bottom: 40px;
+            padding: 20px;
+            border: 2px solid #333;
+            border-radius: 10px;
+            background: #2a2a2a;
+        }
+        .video-container {
+            margin: 20px 0;
+        }
+        video {
+            width: 100%;
+            max-width: 600px;
+            height: auto;
+            border-radius: 8px;
+            background: #000;
+        }
+        .status {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .success { background: #2d5a2d; color: #90ee90; }
+        .error { background: #5a2d2d; color: #ff9090; }
+        .info { background: #2d4a5a; color: #90d0ee; }
+        .test-results {
+            margin-top: 20px;
+            padding: 15px;
+            background: #333;
+            border-radius: 8px;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        button:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎥 Video Playback Verification Test</h1>
+    <p>Testing that Vid3.mp4 and Vid4.mp4 are loading and playing correctly after duplicate removal.</p>
+
+    <div class="test-container">
+        <h2>📹 Vid3.mp4 Test</h2>
+        <div class="video-container">
+            <video id="vid3" controls preload="metadata">
+                <source src="/videos/Vid3.mp4" type="video/mp4">
+                Your browser does not support the video tag.
+            </video>
+        </div>
+        <div id="vid3-status" class="status info">Loading...</div>
+        <button onclick="testVideo('vid3')">Test Vid3 Playback</button>
+        <button onclick="getVideoInfo('vid3')">Get Video Info</button>
+    </div>
+
+    <div class="test-container">
+        <h2>📹 Vid4.mp4 Test</h2>
+        <div class="video-container">
+            <video id="vid4" controls preload="metadata">
+                <source src="/videos/Vid4.mp4" type="video/mp4">
+                Your browser does not support the video tag.
+            </video>
+        </div>
+        <div id="vid4-status" class="status info">Loading...</div>
+        <button onclick="testVideo('vid4')">Test Vid4 Playback</button>
+        <button onclick="getVideoInfo('vid4')">Get Video Info</button>
+    </div>
+
+    <div class="test-results">
+        <h3>📊 Test Results</h3>
+        <div id="results">
+            <p>Click the test buttons above to verify video playback functionality.</p>
+        </div>
+    </div>
+
+    <script>
+        let testResults = {};
+
+        // Initialize video event listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            const videos = ['vid3', 'vid4'];
+            
+            videos.forEach(videoId => {
+                const video = document.getElementById(videoId);
+                const statusDiv = document.getElementById(videoId + '-status');
+                
+                video.addEventListener('loadstart', () => {
+                    statusDiv.textContent = 'Loading video...';
+                    statusDiv.className = 'status info';
+                });
+                
+                video.addEventListener('loadedmetadata', () => {
+                    statusDiv.textContent = `✅ Metadata loaded - Duration: ${video.duration.toFixed(2)}s, Size: ${video.videoWidth}x${video.videoHeight}`;
+                    statusDiv.className = 'status success';
+                    testResults[videoId] = { loaded: true, duration: video.duration, width: video.videoWidth, height: video.videoHeight };
+                    updateResults();
+                });
+                
+                video.addEventListener('canplay', () => {
+                    console.log(`${videoId} can start playing`);
+                });
+                
+                video.addEventListener('error', (e) => {
+                    statusDiv.textContent = `❌ Error loading video: ${e.target.error?.message || 'Unknown error'}`;
+                    statusDiv.className = 'status error';
+                    testResults[videoId] = { loaded: false, error: e.target.error?.message || 'Unknown error' };
+                    updateResults();
+                });
+                
+                video.addEventListener('play', () => {
+                    console.log(`${videoId} started playing`);
+                });
+                
+                video.addEventListener('pause', () => {
+                    console.log(`${videoId} paused`);
+                });
+            });
+        });
+
+        function testVideo(videoId) {
+            const video = document.getElementById(videoId);
+            const statusDiv = document.getElementById(videoId + '-status');
+            
+            if (video.paused) {
+                video.play().then(() => {
+                    statusDiv.textContent = `▶️ Playing ${videoId.toUpperCase()}`;
+                    statusDiv.className = 'status success';
+                    testResults[videoId] = { ...testResults[videoId], playable: true };
+                    updateResults();
+                    
+                    // Auto-pause after 3 seconds for testing
+                    setTimeout(() => {
+                        video.pause();
+                        statusDiv.textContent = `⏸️ ${videoId.toUpperCase()} paused (test complete)`;
+                    }, 3000);
+                }).catch(error => {
+                    statusDiv.textContent = `❌ Playback failed: ${error.message}`;
+                    statusDiv.className = 'status error';
+                    testResults[videoId] = { ...testResults[videoId], playable: false, playError: error.message };
+                    updateResults();
+                });
+            } else {
+                video.pause();
+                statusDiv.textContent = `⏸️ ${videoId.toUpperCase()} paused`;
+                statusDiv.className = 'status info';
+            }
+        }
+
+        function getVideoInfo(videoId) {
+            const video = document.getElementById(videoId);
+            const info = {
+                src: video.currentSrc,
+                duration: video.duration,
+                width: video.videoWidth,
+                height: video.videoHeight,
+                readyState: video.readyState,
+                networkState: video.networkState,
+                paused: video.paused,
+                ended: video.ended,
+                currentTime: video.currentTime
+            };
+            
+            console.log(`${videoId.toUpperCase()} Info:`, info);
+            alert(`${videoId.toUpperCase()} Info:\n${JSON.stringify(info, null, 2)}`);
+        }
+
+        function updateResults() {
+            const resultsDiv = document.getElementById('results');
+            let html = '<h4>Current Test Status:</h4>';
+            
+            Object.keys(testResults).forEach(videoId => {
+                const result = testResults[videoId];
+                html += `<p><strong>${videoId.toUpperCase()}:</strong> `;
+                
+                if (result.loaded) {
+                    html += `✅ Loaded (${result.width}x${result.height}, ${result.duration?.toFixed(2)}s)`;
+                    if (result.playable === true) {
+                        html += ` - ✅ Playable`;
+                    } else if (result.playable === false) {
+                        html += ` - ❌ Not Playable: ${result.playError}`;
+                    }
+                } else {
+                    html += `❌ Failed to load: ${result.error}`;
+                }
+                html += '</p>';
+            });
+            
+            resultsDiv.innerHTML = html;
+        }
+
+        // Auto-test on page load
+        setTimeout(() => {
+            console.log('Auto-testing video loading...');
+            updateResults();
+        }, 2000);
+    </script>
+</body>
+</html>

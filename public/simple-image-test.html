@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Media Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: white;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #333;
+            border-radius: 8px;
+            background: #2a2a2a;
+        }
+        video, img {
+            max-width: 100%;
+            height: auto;
+            margin: 10px 0;
+            border: 2px solid #444;
+            border-radius: 8px;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            background: #333;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .success { background: #2d5a2d; }
+        .error { background: #5a2d2d; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Media Loading Test</h1>
+    
+    <div class="test-section">
+        <h2>Test 1: Direct Video Loading</h2>
+        <video id="video1" controls preload="metadata">
+            <source src="/videos/Vid3.mp4" type="video/mp4">
+            Your browser does not support the video tag.
+        </video>
+        <div id="video1-status" class="status">Loading...</div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 2: Video with Different Preload</h2>
+        <video id="video2" controls preload="none">
+            <source src="/videos/Vid4.mp4" type="video/mp4">
+            Your browser does not support the video tag.
+        </video>
+        <div id="video2-status" class="status">Loading...</div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 3: Fetch and Create Video</h2>
+        <button onclick="loadVideoViaFetch()">Load Video via Fetch</button>
+        <div id="fetch-video-container"></div>
+        <div id="fetch-status" class="status">Ready to test</div>
+    </div>
+
+    <script>
+        // Test video 1
+        const video1 = document.getElementById('video1');
+        const video1Status = document.getElementById('video1-status');
+
+        video1.addEventListener('loadstart', () => {
+            video1Status.textContent = 'Load started...';
+            video1Status.className = 'status';
+        });
+
+        video1.addEventListener('loadedmetadata', () => {
+            video1Status.textContent = `✅ Metadata loaded - Duration: ${video1.duration.toFixed(2)}s`;
+            video1Status.className = 'status success';
+        });
+
+        video1.addEventListener('canplay', () => {
+            console.log('Video 1 can play');
+        });
+
+        video1.addEventListener('error', (e) => {
+            video1Status.textContent = `❌ Error: ${e.target.error?.message || 'Unknown error'}`;
+            video1Status.className = 'status error';
+            console.error('Video 1 error:', e.target.error);
+        });
+
+        // Test video 2
+        const video2 = document.getElementById('video2');
+        const video2Status = document.getElementById('video2-status');
+
+        video2.addEventListener('loadstart', () => {
+            video2Status.textContent = 'Load started...';
+            video2Status.className = 'status';
+        });
+
+        video2.addEventListener('loadedmetadata', () => {
+            video2Status.textContent = `✅ Metadata loaded - Duration: ${video2.duration.toFixed(2)}s`;
+            video2Status.className = 'status success';
+        });
+
+        video2.addEventListener('canplay', () => {
+            console.log('Video 2 can play');
+        });
+
+        video2.addEventListener('error', (e) => {
+            video2Status.textContent = `❌ Error: ${e.target.error?.message || 'Unknown error'}`;
+            video2Status.className = 'status error';
+            console.error('Video 2 error:', e.target.error);
+        });
+
+        // Fetch test
+        async function loadVideoViaFetch() {
+            const container = document.getElementById('fetch-video-container');
+            const status = document.getElementById('fetch-status');
+            
+            try {
+                status.textContent = 'Fetching video...';
+                status.className = 'status';
+                
+                const response = await fetch('/videos/Vid3.mp4');
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                status.textContent = 'Creating blob URL...';
+                const blob = await response.blob();
+                const blobUrl = URL.createObjectURL(blob);
+                
+                const video = document.createElement('video');
+                video.controls = true;
+                video.src = blobUrl;
+                video.style.maxWidth = '100%';
+                video.style.height = 'auto';
+                video.style.margin = '10px 0';
+                video.style.border = '2px solid #444';
+                video.style.borderRadius = '8px';
+                
+                video.addEventListener('loadedmetadata', () => {
+                    status.textContent = `✅ Fetch method successful - Duration: ${video.duration.toFixed(2)}s`;
+                    status.className = 'status success';
+                });
+                
+                video.addEventListener('error', (e) => {
+                    status.textContent = `❌ Fetch video error: ${e.target.error?.message || 'Unknown error'}`;
+                    status.className = 'status error';
+                });
+                
+                container.innerHTML = '';
+                container.appendChild(video);
+                
+            } catch (error) {
+                status.textContent = `❌ Fetch failed: ${error.message}`;
+                status.className = 'status error';
+                console.error('Fetch error:', error);
+            }
+        }
+
+        // Log all network requests
+        const originalFetch = window.fetch;
+        window.fetch = function(...args) {
+            console.log('🌐 Fetch request:', args[0]);
+            return originalFetch.apply(this, args)
+                .then(response => {
+                    console.log('✅ Fetch response:', response.status, response.url);
+                    return response;
+                })
+                .catch(error => {
+                    console.error('❌ Fetch error:', error);
+                    throw error;
+                });
+        };
+
+        // Monitor video element network requests
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('🎬 Page loaded, monitoring video elements...');
+        });
+    </script>
+</body>
+</html>

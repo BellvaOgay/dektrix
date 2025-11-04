@@ -10,32 +10,6 @@ import { applyBasePay, getPerViewChargeAmount, formatUSDC, calculateBasePayPrice
 // Mock storage for browser environment
 let mockVideos: any[] = [
   {
-    _id: '68f3cd912c1d63bfd2d8711b',
-    title: 'Introduction to AI Agents',
-    category: 'AI Agents',
-    duration: 28,
-    price: 100000,
-    priceDisplay: '0.1 USDC',
-    thumbnail: '/placeholder.svg',
-    isFree: true,
-    isUnlocked: true,
-    videoUrl: '/videos/Vid1.mp4',
-    description: 'Overview of emerging agent-to-agent marketplaces and hiring patterns.'
-  },
-  {
-    _id: '68f3cd912c1d63bfd2d8711e',
-    title: 'DeFi Fundamentals',
-    category: 'DeFi',
-    duration: 35,
-    price: 100000,
-    priceDisplay: '0.1 USDC',
-    thumbnail: '/placeholder.svg',
-    isFree: true,
-    isUnlocked: true,
-    videoUrl: '/videos/Vid2.mp4',
-    description: 'Beginner-friendly DeFi walkthrough with simple analogies and examples.'
-  },
-  {
     _id: '68f3cd922c1d63bfd2d87121',
     title: 'Blockchain Basics',
     category: 'Blockchain',
@@ -73,16 +47,28 @@ export async function getVideos(filters?: {
   try {
     // Use serverless API when running in the browser
     if (typeof window !== 'undefined') {
-      // In dev, avoid hitting /api (Vite doesn’t run serverless) and use mock
-      if (import.meta.env.DEV) {
-        return { success: true, data: mockVideos.slice(0, filters?.limit || 20) };
-      }
-
       const params = new URLSearchParams();
       if (filters?.category) params.set('category', filters.category);
       if (filters?.featured !== undefined) params.set('featured', String(filters.featured));
       if (filters?.limit !== undefined) params.set('limit', String(filters.limit));
       if (filters?.skip !== undefined) params.set('skip', String(filters.skip));
+
+      // In dev mode, try API first, fallback to mock if not available
+      if (import.meta.env.DEV) {
+        try {
+          const res = await fetch(`/api/videos?${params.toString()}`);
+          if (res.ok) {
+            const json = await res.json();
+            return json;
+          } else {
+            console.warn('API not available in dev mode, using mock data');
+            return { success: true, data: mockVideos.slice(0, filters?.limit || 20) };
+          }
+        } catch (e) {
+          console.warn('API request failed in dev mode, using mock data:', e);
+          return { success: true, data: mockVideos.slice(0, filters?.limit || 20) };
+        }
+      }
 
       try {
         const res = await fetch(`/api/videos?${params.toString()}`);
@@ -172,27 +158,91 @@ export async function getVideoById(videoId: string, userId?: string) {
 // Create a new video
 export async function createVideo(videoData: Partial<IVideo>) {
   try {
-    await connectDB();
-
-    // In browser environment, use mock storage
+    // In browser environment, use serverless API for persistence
     if (typeof window !== 'undefined') {
-      logger.debug('🌐 Creating video in mock storage');
-      const newVideo = {
-        _id: Date.now().toString(),
-        ...videoData,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        views: 0,
-        isActive: true
-      };
-      mockVideos.push(newVideo);
+      logger.debug('🌐 Creating video via API endpoint');
+      
+      // In dev mode, check if we can reach the API
+      if (import.meta.env.DEV) {
+        try {
+          const response = await fetch('/api/videos', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(videoData),
+          });
 
-      return {
-        success: true,
-        data: newVideo
-      };
+          if (response.ok) {
+            const result = await response.json();
+            return result;
+          } else {
+            console.warn('API not available in dev mode, falling back to mock storage');
+            // Fallback to mock storage in dev mode if API is not available
+            const newVideo = {
+              _id: Date.now().toString(),
+              ...videoData,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+              totalViews: 0,
+              totalUnlocks: 0,
+              totalTipsEarned: 0,
+              playCount: 0,
+              isActive: true,
+              creator: {
+                _id: videoData.creatorWallet?.toLowerCase(),
+                username: `user_${videoData.creatorWallet?.slice(-8)}`,
+                displayName: `User ${videoData.creatorWallet?.slice(-8)}`,
+                walletAddress: videoData.creatorWallet
+              }
+            };
+            mockVideos.push(newVideo);
+            return { success: true, data: newVideo };
+          }
+        } catch (error) {
+          console.warn('API request failed in dev mode, using mock storage:', error);
+          // Fallback to mock storage if API request fails
+          const newVideo = {
+            _id: Date.now().toString(),
+            ...videoData,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            totalViews: 0,
+            totalUnlocks: 0,
+            totalTipsEarned: 0,
+            playCount: 0,
+            isActive: true,
+            creator: {
+              _id: videoData.creatorWallet?.toLowerCase(),
+              username: `user_${videoData.creatorWallet?.slice(-8)}`,
+              displayName: `User ${videoData.creatorWallet?.slice(-8)}`,
+              walletAddress: videoData.creatorWallet
+            }
+          };
+          mockVideos.push(newVideo);
+          return { success: true, data: newVideo };
+        }
+      } else {
+        // Production mode - always use API
+        const response = await fetch('/api/videos', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(videoData),
+        });
+
+        if (!response.ok) {
+          throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+        }
+
+        const result = await response.json();
+        return result;
+      }
     }
 
+    // Server-side database operations
+    await connectDB();
     const video = new Video(videoData);
     await video.save();
 
@@ -545,6 +595,41 @@ export async function recordVideoView(videoId: string, userId?: string) {
     return {
       success: false,
       error: 'Failed to record view'
+    };
+  }
+}
+
+// Function to increment play count when video is played
+export async function incrementPlayCount(videoId: string) {
+  try {
+    const response = await fetch('/api/videos/increment-play-count', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        videoId
+      }),
+    });
+
+    const data = await response.json();
+    
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to increment play count');
+    }
+
+    return {
+      success: true,
+      data: {
+        playCount: data.playCount,
+        message: data.message
+      }
+    };
+  } catch (error) {
+    console.error('Error incrementing play count:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
     };
   }
 }

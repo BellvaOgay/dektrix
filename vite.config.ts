@@ -3,6 +3,9 @@ import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
 
+// Import video middleware using require to avoid TypeScript module issues
+const { videoMiddleware } = require("./video-middleware.js");
+
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
   server: {
@@ -11,7 +14,12 @@ export default defineConfig(({ mode }) => ({
     cors: true,
     headers: {
       'Cross-Origin-Embedder-Policy': 'unsafe-none',
-      'Cross-Origin-Opener-Policy': 'unsafe-none'
+      'Cross-Origin-Opener-Policy': 'unsafe-none',
+      'Accept-Ranges': 'bytes'
+    },
+    middlewareMode: false,
+    fs: {
+      strict: false
     },
     proxy: {
       // Only proxy API endpoints, not video files - let Vite serve videos from public
@@ -22,7 +30,7 @@ export default defineConfig(({ mode }) => ({
       },
     },
   },
-  plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
+  plugins: [react(), videoMiddleware(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

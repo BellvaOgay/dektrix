@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Final Video Playback Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: white;
+        }
+        .test-result {
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            border: 2px solid #333;
+        }
+        .success {
+            background: #1a3d1a;
+            border-color: #4CAF50;
+        }
+        .error {
+            background: #3d1a1a;
+            border-color: #f44336;
+        }
+        video {
+            width: 100%;
+            max-width: 400px;
+            height: auto;
+            margin: 10px 0;
+            border: 2px solid #444;
+            border-radius: 8px;
+        }
+        .video-info {
+            background: #2a2a2a;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #45a049; }
+    </style>
+</head>
+<body>
+    <h1>✅ Final Video Playback Test</h1>
+    <p>This test confirms that videos are loading and playing correctly after removing duplicates.</p>
+    
+    <div class="test-result" id="vid3-result">
+        <h2>Vid3.mp4 Test</h2>
+        <video id="vid3" controls preload="metadata">
+            <source src="/videos/Vid3.mp4" type="video/mp4">
+            Your browser does not support the video tag.
+        </video>
+        <div class="video-info" id="vid3-info">Loading...</div>
+        <button onclick="testPlayback('vid3')">Test Playback</button>
+    </div>
+    
+    <div class="test-result" id="vid4-result">
+        <h2>Vid4.mp4 Test</h2>
+        <video id="vid4" controls preload="metadata">
+            <source src="/videos/Vid4.mp4" type="video/mp4">
+            Your browser does not support the video tag.
+        </video>
+        <div class="video-info" id="vid4-info">Loading...</div>
+        <button onclick="testPlayback('vid4')">Test Playback</button>
+    </div>
+
+    <div class="test-result" id="summary">
+        <h2>Test Summary</h2>
+        <div id="summary-content">
+            <p>🔄 Running tests...</p>
+        </div>
+    </div>
+
+    <script>
+        let testResults = {
+            vid3: { loaded: false, canPlay: false, played: false },
+            vid4: { loaded: false, canPlay: false, played: false }
+        };
+
+        function updateSummary() {
+            const summaryContent = document.getElementById('summary-content');
+            const vid3Success = testResults.vid3.loaded && testResults.vid3.canPlay;
+            const vid4Success = testResults.vid4.loaded && testResults.vid4.canPlay;
+            
+            let summary = '<h3>Results:</h3>';
+            summary += `<p>📹 Vid3.mp4: ${vid3Success ? '✅ Working' : '❌ Issues detected'}</p>`;
+            summary += `<p>📹 Vid4.mp4: ${vid4Success ? '✅ Working' : '❌ Issues detected'}</p>`;
+            
+            if (vid3Success && vid4Success) {
+                summary += '<p><strong>🎉 All videos are working correctly!</strong></p>';
+                summary += '<p>The duplicate video removal was successful and videos are playing properly.</p>';
+                document.getElementById('summary').className = 'test-result success';
+            } else {
+                summary += '<p><strong>⚠️ Some videos have issues</strong></p>';
+                document.getElementById('summary').className = 'test-result error';
+            }
+            
+            summaryContent.innerHTML = summary;
+        }
+
+        function setupVideo(videoId) {
+            const video = document.getElementById(videoId);
+            const info = document.getElementById(videoId + '-info');
+            const result = document.getElementById(videoId + '-result');
+            
+            video.addEventListener('loadedmetadata', () => {
+                testResults[videoId].loaded = true;
+                info.innerHTML = `
+                    ✅ Metadata loaded<br>
+                    Duration: ${video.duration.toFixed(2)} seconds<br>
+                    Dimensions: ${video.videoWidth} x ${video.videoHeight}<br>
+                    Ready state: ${video.readyState}
+                `;
+                result.className = 'test-result success';
+                updateSummary();
+            });
+            
+            video.addEventListener('canplay', () => {
+                testResults[videoId].canPlay = true;
+                updateSummary();
+            });
+            
+            video.addEventListener('play', () => {
+                testResults[videoId].played = true;
+                console.log(`${videoId} started playing`);
+            });
+            
+            video.addEventListener('error', (e) => {
+                const error = e.target.error;
+                info.innerHTML = `❌ Error loading video<br>Code: ${error?.code}<br>Message: ${error?.message || 'Unknown error'}`;
+                result.className = 'test-result error';
+                updateSummary();
+            });
+        }
+
+        function testPlayback(videoId) {
+            const video = document.getElementById(videoId);
+            if (video.paused) {
+                video.play().then(() => {
+                    console.log(`${videoId} playback test successful`);
+                    setTimeout(() => {
+                        video.pause();
+                        console.log(`${videoId} paused after test`);
+                    }, 2000);
+                }).catch(error => {
+                    console.error(`${videoId} playback test failed:`, error);
+                });
+            } else {
+                video.pause();
+            }
+        }
+
+        // Initialize tests
+        document.addEventListener('DOMContentLoaded', () => {
+            setupVideo('vid3');
+            setupVideo('vid4');
+            
+            // Auto-update summary every 2 seconds for the first 10 seconds
+            let updateCount = 0;
+            const interval = setInterval(() => {
+                updateSummary();
+                updateCount++;
+                if (updateCount >= 5) {
+                    clearInterval(interval);
+                }
+            }, 2000);
+        });
+    </script>
+</body>
+</html>

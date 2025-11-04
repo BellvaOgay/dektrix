@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fetch Video Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: white;
+        }
+        video {
+            width: 100%;
+            max-width: 600px;
+            height: auto;
+            margin: 20px 0;
+            border: 2px solid #333;
+            border-radius: 8px;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            background: #333;
+        }
+        .success { background: #2d5a2d; }
+        .error { background: #5a2d2d; }
+        button {
+            background: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px 5px;
+        }
+        button:hover { background: #45a049; }
+    </style>
+</head>
+<body>
+    <h1>🎥 Fetch Video Test</h1>
+    
+    <button onclick="testVideo('Vid3')">Test Vid3</button>
+    <button onclick="testVideo('Vid4')">Test Vid4</button>
+    <button onclick="testBothVideos()">Test Both Videos</button>
+    
+    <div id="status" class="status">Click a button to test video loading</div>
+    
+    <div id="video-container"></div>
+
+    <script>
+        async function testVideo(videoName) {
+            const status = document.getElementById('status');
+            const container = document.getElementById('video-container');
+            
+            try {
+                status.textContent = `Testing ${videoName}...`;
+                status.className = 'status';
+                
+                const response = await fetch(`/videos/${videoName}.mp4`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const contentType = response.headers.get('content-type');
+                const contentLength = response.headers.get('content-length');
+                
+                status.textContent = `✅ ${videoName} fetch successful! Content-Type: ${contentType}, Size: ${contentLength} bytes`;
+                status.className = 'status success';
+                
+                // Create blob URL and test video playback
+                const blob = await response.blob();
+                const blobUrl = URL.createObjectURL(blob);
+                
+                const video = document.createElement('video');
+                video.controls = true;
+                video.style.width = '100%';
+                video.style.maxWidth = '600px';
+                video.src = blobUrl;
+                
+                const videoStatus = document.createElement('div');
+                videoStatus.className = 'status';
+                videoStatus.textContent = `${videoName} - Loading from blob...`;
+                
+                video.addEventListener('loadedmetadata', () => {
+                    videoStatus.textContent = `✅ ${videoName} blob video loaded: ${video.duration.toFixed(2)}s, ${video.videoWidth}x${video.videoHeight}`;
+                    videoStatus.className = 'status success';
+                });
+                
+                video.addEventListener('error', (e) => {
+                    videoStatus.textContent = `❌ ${videoName} blob video error: ${e.target.error?.message || 'Unknown error'}`;
+                    videoStatus.className = 'status error';
+                });
+                
+                container.innerHTML = '';
+                container.appendChild(video);
+                container.appendChild(videoStatus);
+                
+            } catch (error) {
+                status.textContent = `❌ ${videoName} fetch failed: ${error.message}`;
+                status.className = 'status error';
+                console.error(`${videoName} error:`, error);
+            }
+        }
+        
+        async function testBothVideos() {
+            await testVideo('Vid3');
+            setTimeout(() => testVideo('Vid4'), 2000);
+        }
+    </script>
+</body>
+</html>

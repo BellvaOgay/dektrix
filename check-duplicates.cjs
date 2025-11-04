@@ -66,13 +66,13 @@ async function checkDuplicates() {
       }
     });
 
-    // Specifically check for Vid2 and Vid4
-    console.log('\n🎯 Specific checks:');
-    const vid2Videos = videos.filter(v => v.videoUrl.includes('Vid2.mp4'));
+    // Specifically check for Vid3 and Vid4
+    console.log('\n🔍 Checking for specific video files:');
+    const vid3Videos = videos.filter(v => v.videoUrl.includes('Vid3.mp4'));
     const vid4Videos = videos.filter(v => v.videoUrl.includes('Vid4.mp4'));
     
-    console.log(`📹 Vid2.mp4 entries: ${vid2Videos.length}`);
-    vid2Videos.forEach((video, index) => {
+    console.log(`📹 Vid3.mp4 entries: ${vid3Videos.length}`);
+    vid3Videos.forEach((video, index) => {
       console.log(`   ${index + 1}. "${video.title}" (ID: ${video._id})`);
     });
     

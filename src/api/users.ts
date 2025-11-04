@@ -546,3 +546,35 @@ export async function addViewCredits(walletAddress: string, creditsToAdd: number
     };
   }
 }
+
+export async function getUserCredits(walletAddress: string) {
+  try {
+    console.log('🔄 Fetching user credits via API:', { walletAddress });
+
+    const response = await fetch(`/api/users/${walletAddress}/credits`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('❌ Failed to fetch user credits:', errorData);
+      return {
+        success: false,
+        error: errorData.error || 'Failed to fetch user credits'
+      };
+    }
+
+    const result = await response.json();
+    console.log('✅ User credits fetched successfully:', result);
+    return result;
+  } catch (error: any) {
+    console.error('❌ Error fetching user credits:', error);
+    return {
+      success: false,
+      error: `Network error: ${error.message || 'Failed to fetch user credits'}`
+    };
+  }
+}

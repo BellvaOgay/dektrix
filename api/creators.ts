@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import connectDB from '../src/lib/database';
+import { connectDB } from './_lib/database';
 import Creator, { ICreator } from '../src/models/Creator';
 import { logger } from '../src/lib/logger';
 
