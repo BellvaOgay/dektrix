@@ -693,7 +693,7 @@ export async function incrementPlayCount(videoId: string) {
 // Function to deduct credit when video starts playing
 export async function deductCreditOnPlay(walletAddress: string, videoId: string) {
   try {
-    const response = await fetch('/api/videos/deduct-credit', {
+    const response = await fetch('/api/videos/unlock', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

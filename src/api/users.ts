@@ -514,7 +514,7 @@ export async function addViewCredits(walletAddress: string, creditsToAdd: number
   try {
     console.log('🔄 Adding view credits via API:', { walletAddress, creditsToAdd });
 
-    const response = await fetch('/api/users/add-credits', {
+    const response = await fetch('/api/users/credits/add', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -584,7 +584,7 @@ export async function withdrawTips(walletAddress: string, amount: number) {
   try {
     console.log('🔄 Withdrawing tips via API:', { walletAddress, amount });
 
-    const response = await fetch('/api/users/withdraw-tips', {
+    const response = await fetch('/api/users/withdraw', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
