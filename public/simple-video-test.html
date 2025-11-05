@@ -3,79 +3,141 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Simple Video Test</title>
+    <title>Simple Video Test - Dektrix</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
-            background: #1a1a1a;
-            color: white;
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px; 
+            background: #0a0a0a; 
+            color: #ffffff; 
+            text-align: center;
         }
-        video {
-            width: 100%;
-            max-width: 600px;
-            height: auto;
-            margin: 20px 0;
-            border: 2px solid #333;
-            border-radius: 8px;
+        .video-container { 
+            margin: 20px auto; 
+            max-width: 600px; 
+            padding: 20px; 
+            border: 1px solid #333; 
+            border-radius: 8px; 
+            background: #1a1a1a; 
         }
-        .status {
-            padding: 10px;
-            margin: 10px 0;
-            border-radius: 5px;
-            background: #333;
+        video { 
+            width: 100%; 
+            max-width: 400px; 
+            height: 225px; 
+            background: #000; 
+            border-radius: 4px; 
         }
-        .success { background: #2d5a2d; }
-        .error { background: #5a2d2d; }
+        .status { 
+            margin: 10px 0; 
+            padding: 10px; 
+            border-radius: 4px; 
+            font-family: monospace; 
+        }
+        .status.success { background: #1a4d1a; border: 1px solid #4CAF50; }
+        .status.error { background: #4d1a1a; border: 1px solid #f44336; }
+        .status.loading { background: #1a1a4d; border: 1px solid #2196F3; }
+        button { 
+            background: #0066cc; 
+            color: white; 
+            border: none; 
+            padding: 8px 16px; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            margin: 5px;
+        }
+        button:hover { background: #0052a3; }
+        h1 { color: #00d4ff; }
     </style>
 </head>
 <body>
-    <h1>🎥 Simple Video Playback Test</h1>
+    <h1>🎬 Simple Video Playback Test</h1>
+    <p>Testing video playback in the browser</p>
     
-    <h2>Vid3.mp4</h2>
-    <video id="vid3" controls>
-        <source src="/videos/Vid3.mp4" type="video/mp4">
-        Your browser does not support the video tag.
-    </video>
-    <div id="vid3-status" class="status">Loading...</div>
+    <div id="video-list"></div>
     
-    <h2>Vid4.mp4</h2>
-    <video id="vid4" controls>
-        <source src="/videos/Vid4.mp4" type="video/mp4">
-        Your browser does not support the video tag.
-    </video>
-    <div id="vid4-status" class="status">Loading...</div>
-
     <script>
-        function setupVideo(videoId) {
-            const video = document.getElementById(videoId);
-            const status = document.getElementById(videoId + '-status');
+        const videos = [
+            'Ep1.mp4',
+            'Eps2.mp4', 
+            'Vid3.mp4',
+            'Vid4.mp4',
+            'TestVideo.mp4'
+        ];
+
+        function testVideo(filename, index) {
+            const container = document.createElement('div');
+            container.className = 'video-container';
             
-            video.addEventListener('loadstart', () => {
-                status.textContent = 'Loading...';
-                status.className = 'status';
-            });
+            const video = document.createElement('video');
+            video.controls = true;
+            video.preload = 'metadata';
+            video.muted = true;
             
-            video.addEventListener('loadedmetadata', () => {
-                status.textContent = `✅ Loaded: ${video.duration.toFixed(2)}s, ${video.videoWidth}x${video.videoHeight}`;
+            const source = document.createElement('source');
+            source.src = `/videos/${filename}`;
+            source.type = 'video/mp4';
+            
+            video.appendChild(source);
+            
+            const status = document.createElement('div');
+            status.className = 'status loading';
+            status.textContent = 'Loading...';
+            
+            const title = document.createElement('h3');
+            title.textContent = filename;
+            
+            const testButton = document.createElement('button');
+            testButton.textContent = '▶️ Test Play';
+            testButton.onclick = async () => {
+                try {
+                    status.className = 'status loading';
+                    status.textContent = 'Testing playback...';
+                    
+                    await video.play();
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    
+                    if (video.currentTime > 0) {
+                        status.className = 'status success';
+                        status.textContent = '✅ Video plays correctly!';
+                    } else {
+                        status.className = 'status error';
+                        status.textContent = '❌ Video loaded but not playing';
+                    }
+                    
+                    video.pause();
+                } catch (error) {
+                    status.className = 'status error';
+                    status.textContent = `❌ Error: ${error.message}`;
+                }
+            };
+            
+            container.appendChild(title);
+            container.appendChild(video);
+            container.appendChild(status);
+            container.appendChild(testButton);
+            
+            document.getElementById('video-list').appendChild(container);
+            
+            // Auto-test after loading
+            video.onloadedmetadata = () => {
                 status.className = 'status success';
-            });
+                status.textContent = '✅ Video metadata loaded';
+                testButton.click();
+            };
             
-            video.addEventListener('canplay', () => {
-                console.log(`${videoId} can play`);
-            });
-            
-            video.addEventListener('error', (e) => {
-                status.textContent = `❌ Error: ${e.target.error?.message || 'Unknown error'}`;
+            video.onerror = () => {
                 status.className = 'status error';
-                console.error(`${videoId} error:`, e.target.error);
-            });
+                status.textContent = '❌ Failed to load video';
+            };
         }
-        
-        setupVideo('vid3');
-        setupVideo('vid4');
+
+        // Test all videos
+        videos.forEach((filename, index) => {
+            setTimeout(() => testVideo(filename, index), index * 1000);
+        });
+
+        console.log('🎬 Video test page loaded');
+        console.log('Testing videos:', videos);
     </script>
 </body>
 </html>

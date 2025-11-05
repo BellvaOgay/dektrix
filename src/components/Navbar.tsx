@@ -111,45 +111,15 @@ const Navbar = () => {
           </div>
 
           <div className="flex items-center gap-3">
-            {/* Wallet Info Display */}
+            {/* Views Left Display - Only show when connected */}
             {isConnected && user && (
-              <div className="flex items-center gap-2 text-sm">
-                <div className="flex items-center gap-2 px-2 py-1 bg-primary/10 rounded-lg">
-                  <span className="text-primary font-medium text-xs sm:text-sm">{user.username}</span>
-                </div>
-                <div className="flex items-center gap-1 px-2 py-1 bg-green-500/10 rounded-lg">
-                  <Video className="w-3 h-3 sm:w-4 sm:h-4 text-green-500" />
-                  <span className="text-green-500 font-medium text-xs sm:text-sm">{user.viewCredits}</span>
-                </div>
+              <div className="flex items-center gap-1 px-3 py-2 bg-green-500/10 rounded-lg border border-green-500/20">
+                <Video className="w-4 h-4 text-green-500" />
+                <span className="text-green-500 font-medium text-sm">
+                  {user.viewCredits} views left
+                </span>
               </div>
             )}
-
-            {/* Debug info - Enhanced for troubleshooting */}
-            <div className="text-xs text-gray-400 mr-2 border border-gray-600 px-2 py-1 rounded">
-              <div>Connected: {isConnected ? 'Yes' : 'No'}</div>
-              <div>Address: {address ? formatAddress(address) : 'No'}</div>
-              <div>User: {user ? 'Yes' : 'No'}</div>
-              {user && (
-                <div className="text-green-400">
-                  <div>Username: {user.username || 'N/A'}</div>
-                  <div>Credits: {user.viewCredits ?? 'N/A'}</div>
-                </div>
-              )}
-              {isConnected && address && !user && (
-                <div className="text-red-400">
-                  <div>⚠️ Connected but no user data!</div>
-                  <button
-                    onClick={() => {
-                      console.log('Refreshing user data...');
-                      refreshUser();
-                    }}
-                    className="text-blue-400 underline text-xs hover:text-blue-300"
-                  >
-                    Refresh User
-                  </button>
-                </div>
-              )}
-            </div>
 
             {isConnected && address ? (
               <DropdownMenu>
@@ -160,22 +130,77 @@ const Navbar = () => {
                     <ChevronDown className="w-3 h-3" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuContent align="end" className="w-64">
                   <DropdownMenuLabel>
                     <div className="flex flex-col">
-                      <span>Wallet Connected</span>
+                      <span className="font-semibold">Wallet Connected</span>
+                      <span className="text-xs text-muted-foreground">{formatAddress(address)}</span>
+                    </div>
+                  </DropdownMenuLabel>
+                  
+                  {user && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuLabel>
+                        <div className="flex flex-col space-y-2">
+                          <span className="font-semibold text-foreground">Profile</span>
+                          <div className="space-y-1 text-sm">
+                            <div className="flex justify-between items-center">
+                              <span className="text-muted-foreground">Username:</span>
+                              <span className="font-medium">{user.username}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="text-muted-foreground">Credits:</span>
+                              <span className="font-medium text-green-500">{user.viewCredits}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="text-muted-foreground">Status:</span>
+                              <span className="font-medium text-green-500">Connected</span>
+                            </div>
+                          </div>
+                        </div>
+                      </DropdownMenuLabel>
+                    </>
+                  )}
+                  
+                  {/* Debug info - Hidden in dropdown for troubleshooting */}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel>
+                    <div className="text-xs text-gray-400 space-y-1">
+                      <div>Connected: {isConnected ? 'Yes' : 'No'}</div>
+                      <div>Address: {address ? formatAddress(address) : 'No'}</div>
+                      <div>User: {user ? 'Yes' : 'No'}</div>
                       {user && (
-                        <div className="text-xs text-muted-foreground mt-1">
-                          <div>User: {user.username}</div>
-                          <div>Credits: {user.viewCredits}</div>
+                        <div className="text-green-400">
+                          <div>Username: {user.username || 'N/A'}</div>
+                          <div>Credits: {user.viewCredits ?? 'N/A'}</div>
+                        </div>
+                      )}
+                      {isConnected && address && !user && (
+                        <div className="text-red-400">
+                          <div>⚠️ Connected but no user data!</div>
+                          <button
+                            onClick={() => {
+                              console.log('Refreshing user data...');
+                              refreshUser();
+                            }}
+                            className="text-blue-400 underline text-xs hover:text-blue-300"
+                          >
+                            Refresh User
+                          </button>
                         </div>
                       )}
                     </div>
                   </DropdownMenuLabel>
+                  
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleCopyAddress} className="cursor-pointer">
                     <Copy className="w-4 h-4 mr-2" />
                     Copy Address
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate("/profile")} className="cursor-pointer">
+                    <User className="w-4 h-4 mr-2" />
+                    Profile
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => navigate("/creator")} className="cursor-pointer">
                     <User className="w-4 h-4 mr-2" />

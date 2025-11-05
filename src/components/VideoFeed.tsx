@@ -6,6 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useCategory } from "@/contexts/CategoryContext";
 import { encodeFunctionData, isAddress, getAddress } from "viem";
 import { addViewCredits } from "@/api/users";
+import { discoverLocalVideos, generateVideoMetadata } from "@/utils/videoScanner";
 
 const ERC20_ABI = [
   {
@@ -27,45 +28,62 @@ const VideoFeed = () => {
   const { toast } = useToast();
   const { selectedCategory } = useCategory();
 
-  // Mock videos data for fallback
-  const mockVideos = [
-    {
-      id: 1,
-      title: "AI Agents Are Hiring Each Other Now??? 😱",
-      topic: "AI Agents",
-      category: "AI Agents",
-      duration: 28,
-      price: "0.1 USDC",
-      priceDisplay: "0.1 USDC",
-      tipAmount: 100000,
-      tipAmountDisplay: "0.1 USDC",
-      thumbnail: "",
-      locked: false,
-      isFree: true,
-      description: "Exploring the future of AI agents in the workplace.",
-      videoUrl: "https://www.w3schools.com/html/mov_bbb.mp4",
-      totalViews: 150,
-      playCount: 75
-    },
-    {
-      id: 2,
-      title: "Smart Contracts Explained Simply",
-      topic: "Blockchain",
-      category: "Education",
-      duration: 15,
-      price: "0.05 USDC",
-      priceDisplay: "0.05 USDC",
-      tipAmount: 50000,
-      tipAmountDisplay: "0.05 USDC",
-      thumbnail: "",
-      locked: false,
-      isFree: true,
-      description: "A playful breakdown of smart contracts with simple analogies.",
-      videoUrl: "https://www.w3schools.com/html/mov_bbb.mp4",
-      totalViews: 89,
-      playCount: 42
-    },
-  ];
+  // Function to generate local video data from public/videos folder
+  const generateLocalVideos = async () => {
+    try {
+      // Use the video scanner utility to discover local videos
+      const discoveredVideos = await discoverLocalVideos();
+      
+      return discoveredVideos.map((video, index) => ({
+        id: `local_${index + 1}`,
+        title: video.title,
+        topic: video.category,
+        category: video.category,
+        duration: video.duration,
+        price: "Free",
+        priceDisplay: "Free",
+        tipAmount: 0,
+        tipAmountDisplay: "0 USDC",
+        thumbnail: "",
+        locked: false,
+        isFree: true,
+        description: video.description,
+        videoUrl: `/videos/${video.filename}`,
+        totalViews: Math.floor(Math.random() * 200) + 50,
+        playCount: Math.floor(Math.random() * 100) + 20
+      }));
+    } catch (error) {
+      console.error('Error discovering local videos:', error);
+      
+      // Fallback to hardcoded list if scanning fails
+      const fallbackVideos = [
+        { filename: 'Ep1.mp4', title: 'Episode 1', category: 'Entertainment', duration: 25 },
+        { filename: 'Eps2.mp4', title: 'Episode 2', category: 'Entertainment', duration: 30 },
+        { filename: 'Vid3.mp4', title: 'Educational Video 3', category: 'Education', duration: 18 },
+        { filename: 'Vid4.mp4', title: 'Educational Video 4', category: 'Education', duration: 22 },
+        { filename: 'TestVideo.mp4', title: 'Test Video', category: 'General', duration: 15 }
+      ];
+
+      return fallbackVideos.map((video, index) => ({
+        id: `local_${index + 1}`,
+        title: video.title,
+        topic: video.category,
+        category: video.category,
+        duration: video.duration,
+        price: "Free",
+        priceDisplay: "Free",
+        tipAmount: 0,
+        tipAmountDisplay: "0 USDC",
+        thumbnail: "",
+        locked: false,
+        isFree: true,
+        description: `Local video: ${video.title}`,
+        videoUrl: `/videos/${video.filename}`,
+        totalViews: Math.floor(Math.random() * 200) + 50,
+        playCount: Math.floor(Math.random() * 100) + 20
+      }));
+    }
+  };
 
   // Debug wallet state changes
   useEffect(() => {
@@ -141,26 +159,35 @@ const VideoFeed = () => {
   };
 
   useEffect(() => {
-    const fetchVideos = async () => {
+    const loadVideos = async () => {
       try {
+        setLoading(true);
+        
+        // Try to fetch from API first
         const result = await getVideos({ limit: 20 });
-        if (result.success) {
+        console.log('📺 API videos fetched:', result.data?.length || 0);
+        
+        if (result.success && result.data?.length > 0) {
           setVideos(result.data);
         } else {
-          console.error('Failed to fetch videos:', result.error);
-          // Fallback to mock data if API fails
-          setVideos(mockVideos);
+          // Fallback to local videos
+          console.log('📁 Falling back to local videos...');
+          const localVideos = await generateLocalVideos();
+          console.log('📁 Local videos loaded:', localVideos.length);
+          setVideos(localVideos);
         }
       } catch (error) {
-        console.error('Error fetching videos:', error);
-        // Fallback to mock data if API fails
-        setVideos(mockVideos);
+        console.error('Error loading videos:', error);
+        // Fallback to local videos on error
+        console.log('📁 Error fallback to local videos...');
+        const localVideos = await generateLocalVideos();
+        setVideos(localVideos);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchVideos();
+    loadVideos();
   }, []);
 
   const filteredVideos = useMemo(() => {
@@ -446,8 +473,8 @@ const VideoFeed = () => {
             const hasCredits = walletUser?.viewCredits >= 1;
             const isVideoLocked = !hasCredits; // Lock ALL videos when user has less than 1 credit
             
-            // For testing: If user is connected, allow access to mock videos
-            const shouldAllowAccess = isConnected && (hasCredits || video.isFree || mockVideos.some(v => v.id === video.id));
+            // For testing: If user is connected, allow access to local videos
+            const shouldAllowAccess = isConnected && (hasCredits || video.isFree || video.videoUrl?.includes('/videos/'));
             const finalIsLocked = !shouldAllowAccess;
 
             const videoPrice = video.price || 100000; // Default 0.1 USDC in wei
@@ -477,6 +504,9 @@ const VideoFeed = () => {
                 videoId={video.id?.toString() || id.toString()}
                 totalViews={video.totalViews}
                 playCount={video.playCount}
+                creatorWallet={video.creatorWallet}
+                totalTipsEarned={video.totalTipsEarned}
+                showTipButton={true}
                 onCreditUpdate={handleCreditUpdate}
                 onUnlock={(paymentMethod) => handleVideoUnlock(video.id?.toString() || id.toString(), paymentMethod)}
                 onClick={() => {

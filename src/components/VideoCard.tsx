@@ -1,11 +1,12 @@
 import { useState, useRef, useEffect } from "react";
-import { Play, Lock, Zap, Eye, Maximize, X } from "lucide-react";
+import { Play, Lock, Zap, Eye, Maximize, X, Heart } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { calculateBasePayPrice, isBasePayEnabled } from "@/lib/utils";
-import { deductCreditOnPlay, incrementPlayCount } from "@/api/videos";
+import { deductCreditOnPlay, incrementPlayCount, tipVideo } from "@/api/videos";
 import { useBaseWallet } from "@/hooks/useBaseWallet";
 import { useVideoPlayer } from "@/contexts/VideoPlayerContext";
 import { usePortraitFullscreen } from "@/hooks/usePortraitFullscreen";
+import { toast } from "@/hooks/use-toast";
 
 interface VideoCardProps {
   title: string;
@@ -25,6 +26,9 @@ interface VideoCardProps {
   onViewUpdate?: () => void; // Callback for view count updates
   totalViews?: number; // Total view count for the video
   playCount?: number; // Play count for the video
+  creatorWallet?: string; // Creator's wallet address for tipping
+  totalTipsEarned?: number; // Total tips earned by this video
+  showTipButton?: boolean; // Whether to show the tip button
 }
 
 const VideoCard = ({
@@ -43,7 +47,10 @@ const VideoCard = ({
   videoId,
   onCreditUpdate,
   totalViews = 0,
-  playCount = 0
+  playCount = 0,
+  creatorWallet,
+  totalTipsEarned = 0,
+  showTipButton = true
 }: VideoCardProps) => {
   const [isHovered, setIsHovered] = useState(false);
   const [showPaymentOptions, setShowPaymentOptions] = useState(false);
@@ -53,6 +60,8 @@ const VideoCard = ({
   const [isVideoLoading, setIsVideoLoading] = useState(false);
   const [videoError, setVideoError] = useState<string | null>(null);
   const [isInitiallyMuted, setIsInitiallyMuted] = useState(true);
+  const [isTipping, setIsTipping] = useState(false);
+  const [showTipModal, setShowTipModal] = useState(false);
   // Remove hasDeductedCredit state as we want to deduct credits on every play
 
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -175,6 +184,64 @@ const VideoCard = ({
       e.preventDefault();
       closeModal();
     }
+    if (e.key === 'Escape' && showTipModal) {
+      e.preventDefault();
+      setShowTipModal(false);
+    }
+  };
+
+  // Handle video tipping
+  const handleTipVideo = async () => {
+    if (!walletUser?.walletAddress || !videoId || !creatorWallet) {
+      toast({
+        title: "Error",
+        description: "Unable to process tip. Please ensure you're connected and the video has a creator.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (walletUser.walletAddress === creatorWallet) {
+      toast({
+        title: "Cannot Tip",
+        description: "You cannot tip your own video.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsTipping(true);
+    try {
+      const result = await tipVideo(videoId, walletUser.walletAddress, 0.1); // Fixed 0.1 USDC tip
+      
+      if (result.success) {
+        toast({
+          title: "Tip Sent!",
+          description: `You tipped 0.1 USDC to the creator.`,
+          variant: "default",
+        });
+        setShowTipModal(false);
+        // Refresh user data if callback is provided
+        if (onCreditUpdate) {
+          onCreditUpdate(result.data.remainingCredits);
+        }
+      } else {
+        toast({
+          title: "Tip Failed",
+          description: result.error || "Failed to send tip. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error sending tip:', error);
+      toast({
+        title: "Tip Error",
+        description: "An error occurred while sending the tip.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsTipping(false);
+    }
   };
 
   // Add keyboard event listener for modal
@@ -203,26 +270,6 @@ const VideoCard = ({
       return;
     }
     
-    // FOR TESTING: Bypass credit system and directly open modal
-    console.log('TESTING MODE: Bypassing credit system - Opening modal for:', title);
-    if (onClick) onClick();
-    if (videoRef.current) {
-      try { videoRef.current.pause(); } catch { }
-    }
-    console.log('Opening modal directly for testing...');
-    console.log('Setting isModalMounted to true');
-    // Reset video state
-    setIsVideoLoading(true);
-    setVideoError(null);
-    setIsModalMounted(true);
-    requestAnimationFrame(() => {
-      console.log('Setting isModalVisible to true');
-      setIsModalVisible(true);
-    });
-    return; // Skip the rest for testing
-    
-    // Original logic commented out for testing
-    /*
     // Prevent video playback if locked (no credits available)
     if (isLocked) {
       console.log('Video is locked, showing payment options');
@@ -231,40 +278,37 @@ const VideoCard = ({
     }
 
     // Deduct credit before allowing video playback
-    if (!isLocked) {
-      console.log('Attempting credit deduction...');
-      const canPlay = await handleCreditDeduction();
-      console.log('Credit deduction result:', canPlay);
+    console.log('Attempting credit deduction...');
+    const canPlay = await handleCreditDeduction();
+    console.log('Credit deduction result:', canPlay);
 
-      if (canPlay === true) {
-        // Record view or other side-effects
-        if (onClick) onClick();
+    if (canPlay === true) {
+      // Record view or other side-effects
+      if (onClick) onClick();
 
-        // Pause inline video to avoid double audio
-        if (videoRef.current) {
-          try { videoRef.current.pause(); } catch { }
-        }
-
-        console.log('Opening modal...');
-        console.log('Setting isModalMounted to true');
-        // Open modal with smooth transition
-        setIsModalMounted(true);
-        // Wait for mount before showing to trigger transition
-        requestAnimationFrame(() => {
-          console.log('Setting isModalVisible to true');
-          setIsModalVisible(true);
-        });
-      } else if (canPlay === 'insufficient_credits') {
-        // User ran out of credits - show payment options
-        console.log('Insufficient credits - showing payment options');
-        setShowPaymentOptions(true);
-      } else if (canPlay === false) {
-        // Other error occurred - show payment options as fallback
-        console.error('Cannot play video: Credit deduction failed');
-        setShowPaymentOptions(true);
+      // Pause inline video to avoid double audio
+      if (videoRef.current) {
+        try { videoRef.current.pause(); } catch { }
       }
+
+      console.log('Opening modal...');
+      console.log('Setting isModalMounted to true');
+      // Open modal with smooth transition
+      setIsModalMounted(true);
+      // Wait for mount before showing to trigger transition
+      requestAnimationFrame(() => {
+        console.log('Setting isModalVisible to true');
+        setIsModalVisible(true);
+      });
+    } else if (canPlay === 'insufficient_credits') {
+      // User ran out of credits - show payment options
+      console.log('Insufficient credits - showing payment options');
+      setShowPaymentOptions(true);
+    } else if (canPlay === false) {
+      // Other error occurred - show payment options as fallback
+      console.error('Cannot play video: Credit deduction failed');
+      setShowPaymentOptions(true);
     }
-    */
   };
 
   const handlePayment = (paymentMethod: 'crypto' | 'basepay') => {
@@ -328,12 +372,6 @@ const VideoCard = ({
       aria-label={`Video card: ${title}`}
       data-video-id={videoId}
     >
-      {/* VISUAL DEBUG: Show modal state on card */}
-      {isModalMounted && (
-        <div className="absolute top-2 right-2 bg-yellow-400 text-black px-2 py-1 rounded text-xs font-bold z-50">
-          MODAL ACTIVE
-        </div>
-      )}
       {/* Payment Options Modal */}
       {showPaymentOptions && (
         <div className="absolute inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center rounded-2xl">
@@ -372,6 +410,51 @@ const VideoCard = ({
           </div>
         </div>
       )}
+
+      {/* Tip Modal */}
+      {showTipModal && (
+        <div className="absolute inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center rounded-2xl">
+          <div className="bg-card p-6 rounded-xl border border-border max-w-sm w-full mx-4">
+            <div className="flex items-center gap-3 mb-4">
+              <Heart className="w-6 h-6 text-red-500" />
+              <h3 className="text-lg font-bold">Send a Tip</h3>
+            </div>
+            <p className="text-sm text-muted-foreground mb-6">
+              Show your appreciation by tipping the creator 0.1 USDC for this video.
+            </p>
+
+            <div className="bg-gradient-to-r from-pink-500/10 to-red-500/10 p-4 rounded-lg mb-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium">Tip Amount:</span>
+                <span className="text-lg font-bold text-pink-500">0.1 USDC</span>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <button
+                onClick={handleTipVideo}
+                disabled={isTipping}
+                className="w-full p-3 bg-gradient-to-r from-pink-500 to-red-500 hover:from-pink-600 hover:to-red-600 text-white rounded-lg font-medium transition-all duration-200 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isTipping ? (
+                  <div className="flex items-center justify-center gap-2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    Sending Tip...
+                  </div>
+                ) : (
+                  'Send Tip'
+                )}
+              </button>
+              <button
+                onClick={() => setShowTipModal(false)}
+                className="w-full p-3 border border-border bg-background hover:bg-accent/50 text-foreground rounded-lg font-medium transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Video Preview Area */}
       <div className="relative aspect-[9/16] bg-gradient-to-br from-primary/20 to-accent/20">
         {/* Render playable video when src is available AND user has credits */}
@@ -397,46 +480,29 @@ const VideoCard = ({
               }}
             />
 
-            {/* Fullscreen Button Overlay */}
-            <button
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                if (videoRef.current) {
-                  togglePortraitFullscreen(videoRef.current);
-                }
-              }}
-              className="absolute top-3 left-3 bg-black/50 hover:bg-black/70 text-white p-2 rounded-full transition-all duration-200 hover:scale-110 z-10"
-              aria-label="Toggle fullscreen"
-              title="Toggle fullscreen"
-            >
-              <Maximize className="w-4 h-4" />
-            </button>
 
-            {/* View in Modal Button Overlay */}
+
+            {/* Fullscreen Modal Button Overlay */}
             <button
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                console.log('View in Modal button clicked for:', title);
+                console.log('Fullscreen button clicked for:', title);
                 console.log('Current modal state - isModalMounted:', isModalMounted, 'isModalVisible:', isModalVisible);
                 // Reuse existing handler to perform credit checks and open modal
                 handleClick();
               }}
               className={cn(
-                "absolute bottom-3 right-3 px-3 py-2 rounded-lg transition-all duration-200 hover:scale-105 z-10",
+                "absolute bottom-3 right-3 p-2 rounded-full transition-all duration-200 hover:scale-110 z-10",
                 src && src.trim() !== '' 
                   ? "bg-black/50 hover:bg-black/70 text-white" 
                   : "bg-gray-500/50 text-gray-300 cursor-not-allowed"
               )}
-              aria-label="View in modal"
-              title={src && src.trim() !== '' ? "View in modal" : "Video not available"}
+              aria-label="View in fullscreen modal"
+              title={src && src.trim() !== '' ? "View in fullscreen modal" : "Video not available"}
               disabled={!src || src.trim() === ''}
             >
-              <span className="inline-flex items-center gap-2">
-                <Play className="w-4 h-4" />
-                View in Modal
-              </span>
+              <Maximize className="w-5 h-5" />
             </button>
           </div>
         ) : (
@@ -529,6 +595,29 @@ const VideoCard = ({
           </div>
         )}
 
+        {/* Tips Display */}
+        {totalTipsEarned > 0 && (
+          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+            <Heart className="w-3 h-3 text-red-500" />
+            <span>{totalTipsEarned.toFixed(2)} USDC in tips</span>
+          </div>
+        )}
+
+        {/* Tip Button */}
+        {showTipButton && walletUser?.walletAddress && creatorWallet && walletUser.walletAddress !== creatorWallet && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowTipModal(true);
+            }}
+            className="mt-2 w-full flex items-center justify-center gap-2 px-3 py-2 bg-gradient-to-r from-pink-500 to-red-500 hover:from-pink-600 hover:to-red-600 text-white text-xs font-medium rounded-lg transition-all duration-200 hover:scale-105"
+            disabled={isTipping}
+          >
+            <Heart className="w-3 h-3" />
+            {isTipping ? 'Tipping...' : 'Tip 0.1 USDC'}
+          </button>
+        )}
+
 
       </div>
 
@@ -551,10 +640,6 @@ const VideoCard = ({
           aria-modal="true"
           role="dialog"
         >
-          {/* VISUAL DEBUG: Show modal state */}
-          <div className="absolute top-4 left-4 bg-red-500 text-white p-2 rounded">
-            MODAL: {isModalMounted ? 'MOUNTED' : 'NOT_MOUNTED'} | {isModalVisible ? 'VISIBLE' : 'NOT_VISIBLE'}
-          </div>
           <div
             className={cn(
               "relative max-w-5xl w-full mx-4 bg-background rounded-xl overflow-hidden shadow-2xl transform transition-all duration-300 ease-in-out",

@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Video Access - Dektrix</title>
+</head>
+<body>
+    <h1>Testing Video File Access</h1>
+    <p>This page tests if video files are accessible via direct URLs.</p>
+    
+    <div id="results"></div>
+    
+    <script>
+        const videos = [
+            'Ep1.mp4',
+            'Eps2.mp4',
+            'Vid3.mp4',
+            'Vid4.mp4',
+            'TestVideo.mp4'
+        ];
+        
+        const results = document.getElementById('results');
+        
+        videos.forEach(video => {
+            const url = `/videos/${video}`;
+            const div = document.createElement('div');
+            div.style.margin = '20px';
+            div.style.padding = '10px';
+            div.style.border = '1px solid #ccc';
+            
+            // Test HEAD request
+            fetch(url, { method: 'HEAD' })
+                .then(response => {
+                    if (response.ok) {
+                        div.innerHTML = `<p style="color: green;">✅ ${video} - Accessible (${response.status})</p>`;
+                        console.log(`✅ ${video} - Accessible`);
+                    } else {
+                        div.innerHTML = `<p style="color: red;">❌ ${video} - Error ${response.status}</p>`;
+                        console.error(`❌ ${video} - Error ${response.status}`);
+                    }
+                })
+                .catch(error => {
+                    div.innerHTML = `<p style="color: red;">❌ ${video} - Network Error: ${error.message}</p>`;
+                    console.error(`❌ ${video} - Network Error:`, error);
+                });
+            
+            results.appendChild(div);
+        });
+    </script>
+</body>
+</html>

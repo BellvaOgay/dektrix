@@ -10,6 +10,7 @@ import GenericVideos from "./pages/GenericVideos";
 import AdminManagement from "./pages/AdminManagement";
 import AdminUpload from "./pages/AdminUpload";
 import PrivateVideo from "./pages/PrivateVideo";
+import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
 
 import "./App.css";
@@ -28,6 +29,8 @@ function App() {
                 <Route path="/videos" element={<Videos />} />
                 <Route path="/generic-videos" element={<GenericVideos />} />
                 <Route path="/creator/:wallet" element={<CreatorProfile />} />
+                <Route path="/profile" element={<Profile />} />
+                <Route path="/profile/:walletAddress" element={<Profile />} />
                 <Route path="/admin" element={<AdminManagement />} />
                 <Route path="/admin/upload" element={<AdminUpload />} />
                 <Route path="/private/:filename" element={<PrivateVideo />} />

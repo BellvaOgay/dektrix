@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Visibility Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .video-container { margin: 20px 0; }
+        .video-item { margin: 10px 0; padding: 10px; border: 1px solid #ccc; }
+        .success { color: green; }
+        .error { color: red; }
+        .video-preview { width: 200px; height: 150px; background: #f0f0f0; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>Video Visibility Test</h1>
+    <div id="results"></div>
+    
+    <script>
+        const videos = [
+            '/videos/Ep1.mp4',
+            '/videos/Eps2.mp4', 
+            '/videos/TestVideo.mp4',
+            '/videos/Vid1.mp4',
+            '/videos/Vid3.mp4',
+            '/videos/Vid4.mp4'
+        ];
+        
+        const resultsDiv = document.getElementById('results');
+        
+        videos.forEach(videoUrl => {
+            const videoItem = document.createElement('div');
+            videoItem.className = 'video-item';
+            
+            const title = document.createElement('h3');
+            title.textContent = videoUrl;
+            videoItem.appendChild(title);
+            
+            const video = document.createElement('video');
+            video.src = videoUrl;
+            video.controls = true;
+            video.className = 'video-preview';
+            
+            const status = document.createElement('p');
+            
+            video.addEventListener('loadeddata', () => {
+                status.innerHTML = '<span class="success">✅ Video loaded successfully!</span>';
+                status.innerHTML += `<br>Duration: ${Math.round(video.duration)} seconds`;
+            });
+            
+            video.addEventListener('error', (e) => {
+                status.innerHTML = '<span class="error">❌ Video failed to load</span>';
+                status.innerHTML += `<br>Error: ${e.message || 'Unknown error'}`;
+            });
+            
+            // Test if video file exists
+            fetch(videoUrl, { method: 'HEAD' })
+                .then(response => {
+                    if (response.ok) {
+                        status.innerHTML = '<span class="success">✅ Video file exists on server</span>';
+                    } else {
+                        status.innerHTML = '<span class="error">❌ Video file not found on server</span>';
+                    }
+                })
+                .catch(error => {
+                    status.innerHTML = '<span class="error">❌ Network error: ' + error.message + '</span>';
+                });
+            
+            videoItem.appendChild(video);
+            videoItem.appendChild(status);
+            resultsDiv.appendChild(videoItem);
+        });
+        
+        // Also test the main app
+        const appTest = document.createElement('div');
+        appTest.className = 'video-item';
+        appTest.innerHTML = '<h2>Main App Test</h2><p>Check browser console for any video loading errors when visiting: <a href="/" target="_blank">Main App</a></p>';
+        resultsDiv.appendChild(appTest);
+    </script>
+</body>
+</html>

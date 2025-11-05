@@ -578,3 +578,40 @@ export async function getUserCredits(walletAddress: string) {
     };
   }
 }
+
+// Withdraw tips (minimum 5 USDC)
+export async function withdrawTips(walletAddress: string, amount: number) {
+  try {
+    console.log('🔄 Withdrawing tips via API:', { walletAddress, amount });
+
+    const response = await fetch('/api/users/withdraw-tips', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        walletAddress,
+        amount
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('❌ Failed to withdraw tips:', errorData);
+      return {
+        success: false,
+        error: errorData.error || 'Failed to withdraw tips'
+      };
+    }
+
+    const result = await response.json();
+    console.log('✅ Tips withdrawn successfully:', result);
+    return result;
+  } catch (error: any) {
+    console.error('❌ Error withdrawing tips:', error);
+    return {
+      success: false,
+      error: `Network error: ${error.message || 'Failed to withdraw tips'}`
+    };
+  }
+}

@@ -6,36 +6,92 @@ import Transaction from '../models/Transaction';
 import type { IVideo } from '../models/Video';
 import type { IUser } from '../models/User';
 import { applyBasePay, getPerViewChargeAmount, formatUSDC, calculateBasePayPrice, isBasePayEnabled } from '../lib/utils';
+import { discoverLocalVideos, generateVideoMetadata } from '@/utils/videoScanner';
 
-// Mock storage for browser environment
-let mockVideos: any[] = [
-  {
-    _id: '68f3cd922c1d63bfd2d87121',
-    title: 'Blockchain Basics',
-    category: 'Blockchain',
-    duration: 200,
-    price: 100000,
-    priceDisplay: '0.1 USDC',
-    thumbnail: '/placeholder.svg',
-    isFree: true,
-    isUnlocked: true,
-    videoUrl: '/videos/Vid3.mp4',
-    description: 'Learn the fundamental concepts of blockchain technology.'
-  },
-  {
-    _id: '68f3e66330567f8b7a2a70de',
-    title: 'Web3 Security Fundamentals',
-    category: 'Web3 Security',
-    duration: 240,
-    price: 100000,
-    priceDisplay: '0.1 USDC',
-    thumbnail: '/placeholder.svg',
-    isFree: true,
-    isUnlocked: true,
-    videoUrl: '/videos/Vid4.mp4',
-    description: 'Essential security practices for Web3 development and smart contracts.'
+// Function to scan local videos folder and generate video metadata
+async function scanLocalVideos() {
+  try {
+    // Use the video scanner utility to discover local videos
+    const discoveredVideos = await discoverLocalVideos();
+    
+    return discoveredVideos.map((video, index) => ({
+      _id: `local_${Date.now()}_${index}`,
+      title: video.title,
+      category: video.category,
+      duration: video.duration,
+      price: 0,
+      priceDisplay: 'Free',
+      thumbnail: '/placeholder.svg',
+      isFree: true,
+      isUnlocked: true,
+      videoUrl: `/videos/${video.filename}`,
+      description: video.description,
+      totalViews: Math.floor(Math.random() * 1000),
+      totalUnlocks: Math.floor(Math.random() * 500),
+      playCount: Math.floor(Math.random() * 200),
+      createdAt: new Date(Date.now() - Math.random() * 86400000 * 30), // Random date within last 30 days
+      isActive: true,
+      creator: {
+        _id: 'local_creator',
+        username: 'local_system',
+        displayName: 'Local System',
+        walletAddress: '0x0000000000000000000000000000000000000000'
+      }
+    }));
+  } catch (error) {
+    console.error('Error scanning local videos:', error);
+    // Fallback to hardcoded list if scanning fails
+    const fallbackVideos = [
+      { filename: 'Ep1.mp4', title: 'Episode 1', category: 'Entertainment', duration: 25 },
+      { filename: 'Eps2.mp4', title: 'Episode 2', category: 'Entertainment', duration: 30 },
+      { filename: 'Vid3.mp4', title: 'Educational Video 3', category: 'Education', duration: 18 },
+      { filename: 'Vid4.mp4', title: 'Educational Video 4', category: 'Education', duration: 22 }
+    ];
+    
+    return fallbackVideos.map((video, index) => ({
+      _id: `local_${Date.now()}_${index}`,
+      title: video.title,
+      category: video.category,
+      duration: video.duration,
+      price: 0,
+      priceDisplay: 'Free',
+      thumbnail: '/placeholder.svg',
+      isFree: true,
+      isUnlocked: true,
+      videoUrl: `/videos/${video.filename}`,
+      description: `Local video: ${video.title}`,
+      totalViews: Math.floor(Math.random() * 1000),
+      totalUnlocks: Math.floor(Math.random() * 500),
+      playCount: Math.floor(Math.random() * 200),
+      createdAt: new Date(Date.now() - Math.random() * 86400000 * 30),
+      isActive: true,
+      creator: {
+        _id: 'local_creator',
+        username: 'local_system',
+        displayName: 'Local System',
+        walletAddress: '0x0000000000000000000000000000000000000000'
+      }
+    }));
   }
-];
+}
+
+// Mock storage for browser environment - now dynamically generated from local videos
+let mockVideos: any[] = [];
+
+// Initialize mock videos asynchronously
+async function initializeMockVideos() {
+  try {
+    mockVideos = await scanLocalVideos();
+    console.log('✅ Local videos initialized:', mockVideos.length, 'videos found');
+  } catch (error) {
+    console.error('❌ Failed to initialize local videos:', error);
+    // Fallback to empty array
+    mockVideos = [];
+  }
+}
+
+// Initialize on module load
+initializeMockVideos();
 
 // Get all videos with optional filtering
 export async function getVideos(filters?: {
@@ -664,6 +720,74 @@ export async function deductCreditOnPlay(walletAddress: string, videoId: string)
     };
   } catch (error) {
     console.error('Error deducting credit on play:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
+  }
+}
+
+// Function to tip a video creator
+export async function tipVideo(videoId: string, tipperWallet: string, amount: number) {
+  try {
+    const response = await fetch('/api/videos/tip', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        videoId,
+        tipperWallet,
+        amount
+      }),
+    });
+
+    const data = await response.json();
+    
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to send tip');
+    }
+
+    return {
+      success: true,
+      data: {
+        remainingCredits: data.remainingCredits,
+        transaction: data.transaction,
+        message: data.message
+      }
+    };
+  } catch (error) {
+    console.error('Error sending tip:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
+  }
+}
+
+// Function to upload a video
+export async function uploadVideo(formData: FormData) {
+  try {
+    const response = await fetch('/api/videos/upload', {
+      method: 'POST',
+      body: formData,
+    });
+
+    const data = await response.json();
+    
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to upload video');
+    }
+
+    return {
+      success: true,
+      data: {
+        video: data.video,
+        message: data.message
+      }
+    };
+  } catch (error) {
+    console.error('Error uploading video:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'
