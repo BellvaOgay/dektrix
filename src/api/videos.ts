@@ -40,12 +40,12 @@ async function scanLocalVideos() {
     }));
   } catch (error) {
     console.error('Error scanning local videos:', error);
-    // Fallback to hardcoded list if scanning fails
+    // Fallback to hardcoded list if scanning fails - updated to match public folder
     const fallbackVideos = [
       { filename: 'Ep1.mp4', title: 'Episode 1', category: 'Entertainment', duration: 25 },
       { filename: 'Eps2.mp4', title: 'Episode 2', category: 'Entertainment', duration: 30 },
-      { filename: 'Vid3.mp4', title: 'Educational Video 3', category: 'Education', duration: 18 },
-      { filename: 'Vid4.mp4', title: 'Educational Video 4', category: 'Education', duration: 22 }
+      { filename: 'Ep3.mp4', title: 'Episode 3', category: 'Entertainment', duration: 28 },
+      { filename: 'Ep4.mp4', title: 'Episode 4', category: 'Entertainment', duration: 32 }
     ];
     
     return fallbackVideos.map((video, index) => ({
@@ -81,7 +81,9 @@ let mockVideos: any[] = [];
 // Initialize mock videos asynchronously
 async function initializeMockVideos() {
   try {
-    mockVideos = await scanLocalVideos();
+    const localVideos = await scanLocalVideos();
+    // scanLocalVideos() already returns the transformed format, so just assign it
+    mockVideos = localVideos;
     console.log('✅ Local videos initialized:', mockVideos.length, 'videos found');
   } catch (error) {
     console.error('❌ Failed to initialize local videos:', error);

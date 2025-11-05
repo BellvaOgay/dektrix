@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { connectToDatabase } from '../../_lib/database';
+import { connectDB } from '../_lib/database';
 import { ObjectId } from 'mongodb';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -11,7 +11,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'Video ID is required' });
     }
 
-    const { db } = await connectToDatabase();
+    const mongoose = await connectDB();
+    const db = mongoose.connection.db;
 
     switch (req.method) {
       case 'GET':

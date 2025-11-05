@@ -17,14 +17,12 @@ export interface LocalVideoFile {
  * this would be done server-side or through an API endpoint
  */
 export function scanLocalVideos(): LocalVideoFile[] {
-  // In a real implementation, this would scan the actual directory
-  // For now, we'll maintain a list of known video files
+  // Updated to only include videos that exist in the public folder
   const knownVideos: LocalVideoFile[] = [
     { filename: 'Ep1.mp4', title: 'Episode 1', category: 'Entertainment', duration: 25, description: 'First episode of the series' },
     { filename: 'Eps2.mp4', title: 'Episode 2', category: 'Entertainment', duration: 30, description: 'Second episode of the series' },
-    { filename: 'Vid3.mp4', title: 'Educational Video 3', category: 'Education', duration: 18, description: 'Educational content video 3' },
-    { filename: 'Vid4.mp4', title: 'Educational Video 4', category: 'Education', duration: 22, description: 'Educational content video 4' },
-    { filename: 'TestVideo.mp4', title: 'Test Video', category: 'General', duration: 15, description: 'Test video for demonstration' }
+    { filename: 'Ep3.mp4', title: 'Episode 3', category: 'Entertainment', duration: 28, description: 'Third episode of the series' },
+    { filename: 'Ep4.mp4', title: 'Episode 4', category: 'Entertainment', duration: 32, description: 'Fourth episode of the series' }
   ];
 
   return knownVideos;

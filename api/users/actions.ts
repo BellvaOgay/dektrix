@@ -1,7 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { connectToDatabase } from '../../_lib/database';
+import { connectDB } from '../_lib/database';
 import { ObjectId } from 'mongodb';
-import { User } from '../../src/models/User';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
@@ -12,7 +11,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'Wallet address is required' });
     }
 
-    const { db } = await connectToDatabase();
+    const mongoose = await connectDB();
+    const db = mongoose.connection.db;
 
     switch (req.method) {
       case 'GET':
@@ -174,9 +174,9 @@ async function processWithdrawal(db: any, wallet: string, req: VercelRequest, re
       createdAt: new Date()
     };
 
-    await db.collection('withdrawalHistory').insertOne(withdrawal);
+    const result = await db.collection('withdrawalHistory').insertOne(withdrawal);
 
-    return res.status(200).json({ success: true, withdrawalId: withdrawal._id });
+    return res.status(200).json({ success: true, withdrawalId: result.insertedId });
   } catch (error) {
     console.error('Process withdrawal error:', error);
     return res.status(500).json({ error: 'Failed to process withdrawal' });
