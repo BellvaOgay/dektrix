@@ -514,12 +514,13 @@ export async function addViewCredits(walletAddress: string, creditsToAdd: number
   try {
     console.log('🔄 Adding view credits via API:', { walletAddress, creditsToAdd });
 
-    const response = await fetch('/api/users/credits/add', {
+    const response = await fetch('/api/users/actions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
+        action: 'add-credits',
         walletAddress: walletAddress,
         creditsToAdd: creditsToAdd
       })
@@ -584,12 +585,13 @@ export async function withdrawTips(walletAddress: string, amount: number) {
   try {
     console.log('🔄 Withdrawing tips via API:', { walletAddress, amount });
 
-    const response = await fetch('/api/users/withdraw', {
+    const response = await fetch('/api/users/actions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
+        action: 'withdraw',
         walletAddress,
         amount
       })
