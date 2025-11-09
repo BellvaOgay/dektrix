@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { connectDB } from '../_lib/database';
+import connectDB from '../../src/lib/database';
 import { ObjectId } from 'mongodb';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {

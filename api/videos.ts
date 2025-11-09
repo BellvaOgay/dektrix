@@ -1,7 +1,8 @@
 import type { IncomingMessage, ServerResponse } from 'http';
-import { connectDB } from './_lib/database.js';
+import connectDB from '../src/lib/database';
 import Video from '../src/models/Video.js';
 import User from '../src/models/User.js';
+import Creator from '../src/models/Creator.js';
 
 interface ApiResponse {
   success: boolean;
@@ -79,11 +80,11 @@ export default async function handler(req: IncomingMessage & { method?: string; 
         }
 
         // Ensure creator exists (create if absent)
-        let creator = await (User as any).findOne({ walletAddress: data.creatorWallet });
+        let creator = await (Creator as any).findOne({ wallet_address: data.creatorWallet.toLowerCase() });
         if (!creator) {
-          creator = new (User as any)({
+          creator = new (Creator as any)({
+            wallet_address: data.creatorWallet.toLowerCase(),
             username: data.creatorWallet.slice(0, 8),
-            walletAddress: data.creatorWallet,
           });
           await creator.save();
         }

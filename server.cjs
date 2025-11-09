@@ -85,6 +85,60 @@ const creatorSchema = new mongoose.Schema({
 
 const Creator = mongoose.model('Creator', creatorSchema);
 
+// Transaction Schema
+const transactionSchema = new mongoose.Schema({
+  user: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
+  video: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Video',
+    required: true
+  },
+  type: {
+    type: String,
+    enum: ['unlock', 'tip', 'view', 'refund'],
+    required: true
+  },
+  amount: {
+    type: Number,
+    required: true,
+    min: 0
+  },
+  amountDisplay: {
+    type: String,
+    required: true
+  },
+  transactionHash: {
+    type: String,
+    unique: true,
+    sparse: true
+  },
+  status: {
+    type: String,
+    enum: ['pending', 'completed', 'failed'],
+    default: 'pending'
+  },
+  paymentMethod: {
+    type: String,
+    enum: ['crypto', 'farcaster', 'credit', 'basepay'],
+    required: true
+  },
+  metadata: {
+    blockNumber: Number,
+    gasUsed: Number,
+    gasPrice: Number,
+    basePayAmount: Number,
+    basePayApplied: Boolean
+  }
+}, {
+  timestamps: true
+});
+
+const Transaction = mongoose.model('Transaction', transactionSchema);
+
 // API Routes
 
 // Get user by wallet address
@@ -521,7 +575,7 @@ app.post('/api/videos', async (req, res) => {
       priceDisplay: priceDisplay || 'Free',
       difficulty: difficulty || 'Beginner',
       creator: creator._id,
-      isFree: isFree !== undefined ? isFree : true
+      isFree: isFree !== undefined ? isFree : false // All videos locked by default
     });
 
     await video.save();
@@ -594,6 +648,42 @@ app.get('/api/videos', async (req, res) => {
     res.status(500).json({ 
       error: 'Internal server error',
       message: process.env.NODE_ENV === 'development' ? error.message : 'Failed to fetch videos'
+    });
+  }
+});
+
+// Get video by filename (e.g., Ep5.mp4)
+app.get('/api/videos/filename/:filename', async (req, res) => {
+  try {
+    const { filename } = req.params;
+    
+    // Find video by filename (case-insensitive search)
+    const video = await Video.findOne({ 
+      $or: [
+        { videoUrl: { $regex: filename, $options: 'i' } },
+        { title: { $regex: filename, $options: 'i' } }
+      ],
+      isActive: true
+    }).populate('creator', 'username profile_image_url');
+
+    if (!video) {
+      return res.status(404).json({ 
+        success: false,
+        error: 'Video not found',
+        message: `Video with filename '${filename}' not found`
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: video
+    });
+
+  } catch (error) {
+    console.error('Error fetching video by filename:', error);
+    res.status(500).json({ 
+      error: 'Internal server error',
+      message: process.env.NODE_ENV === 'development' ? error.message : 'Failed to fetch video'
     });
   }
 });
@@ -684,7 +774,23 @@ app.post('/api/videos/:videoId/view', async (req, res) => {
 
     // Increment view count
     video.totalViews += 1;
-    await video.save();
+    
+    // Handle videos with missing required fields (like creator)
+    try {
+      await video.save();
+    } catch (saveError) {
+      if (saveError.name === 'ValidationError') {
+        // If validation fails due to missing required fields, 
+        // use updateOne to bypass validation and just update totalViews
+        await Video.updateOne(
+          { _id: videoId },
+          { $inc: { totalViews: 1 } }
+        );
+        console.log(`⚠️  View count incremented (bypassed validation) for video: ${video.title}`);
+      } else {
+        throw saveError;
+      }
+    }
 
     console.log(`✅ View count incremented for video: ${video.title} (Total views: ${video.totalViews})`);
 
@@ -908,12 +1014,20 @@ app.post('/api/video-unlock', async (req, res) => {
       });
     }
 
-    // Validate amount is exactly 0.1 USDC (100000 wei)
-    if (amount !== 100000) {
+    // Validate amount is either 0.1 USDC (100000 wei) or 1 USDC (1000000 wei)
+    if (amount !== 100000 && amount !== 1000000) {
       return res.status(400).json({ 
         success: false, 
-        error: 'Invalid amount. Videos require exactly 0.1 USDC (100000 wei)' 
+        error: 'Invalid amount. Videos require either 0.1 USDC (100000 wei) or 1 USDC (1000000 wei)' 
       });
+    }
+    
+    // Calculate view credits based on payment amount
+    let viewCreditsToAdd = 0;
+    if (amount === 100000) {
+      viewCreditsToAdd = 1; // 0.1 USDC = 1 view credit
+    } else if (amount === 1000000) {
+      viewCreditsToAdd = 12; // 1 USDC = 12 view credits
     }
 
     // Check if video exists
@@ -976,8 +1090,9 @@ app.post('/api/video-unlock', async (req, res) => {
 
     await transaction.save();
 
-    // Update user's unlocked videos
+    // Update user's unlocked videos and add view credits
     user.videosUnlocked.push(videoId);
+    user.viewCredits = (user.viewCredits || 0) + viewCreditsToAdd;
     await user.save();
 
     // Update video stats
@@ -1004,7 +1119,9 @@ app.post('/api/video-unlock', async (req, res) => {
         },
         user: {
           id: user._id,
-          unlockedVideosCount: user.videosUnlocked.length
+          unlockedVideosCount: user.videosUnlocked.length,
+          viewCredits: user.viewCredits,
+          creditsAdded: viewCreditsToAdd
         }
       }
     });
@@ -1124,6 +1241,68 @@ app.get('/api/user/:userId/unlocked-videos', async (req, res) => {
     return res.status(500).json({ 
       success: false, 
       error: 'Internal server error: ' + error.message 
+    });
+  }
+});
+
+// Get Ep6 video endpoint
+app.get('/api/videos/ep6', async (req, res) => {
+  try {
+    // Find Ep6 video by title (case insensitive search for Ep6)
+    const ep6Video = await Video.findOne({
+      $or: [
+        { title: { $regex: /Ep6/i } },
+        { filename: { $regex: /Ep6\.mp4$/i } }
+      ],
+      isActive: true
+    })
+    .populate('creator', 'username displayName avatar')
+    .lean();
+
+    if (!ep6Video) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Ep6 video not found' 
+      });
+    }
+
+    // Format the response with all necessary video details
+    const response = {
+      success: true,
+      data: {
+        _id: ep6Video._id,
+        title: ep6Video.title,
+        description: ep6Video.description || 'Ep6 - The Next Chapter',
+        videoUrl: ep6Video.videoUrl,
+        thumbnail: ep6Video.thumbnail || '/placeholder.svg',
+        duration: ep6Video.duration || 0,
+        category: ep6Video.category || 'Blockchain',
+        price: ep6Video.price || 100000, // Default to 0.1 USDC if not set
+        priceDisplay: ep6Video.priceDisplay || '0.1 USDC',
+        isFree: ep6Video.isFree || false,
+        isUnlocked: ep6Video.isUnlocked || false,
+        totalViews: ep6Video.totalViews || 0,
+        totalUnlocks: ep6Video.totalUnlocks || 0,
+        createdAt: ep6Video.createdAt,
+        creator: ep6Video.creator ? {
+          _id: ep6Video.creator._id,
+          username: ep6Video.creator.username,
+          displayName: ep6Video.creator.displayName,
+          avatar: ep6Video.creator.avatar
+        } : null,
+        // Additional metadata
+        shouldBeLocked: !ep6Video.isFree && (ep6Video.price > 0),
+        isEp6: true
+      }
+    };
+
+    return res.status(200).json(response);
+
+  } catch (error) {
+    console.error('Error fetching Ep6 video:', error);
+    return res.status(500).json({ 
+      success: false, 
+      error: 'Failed to fetch Ep6 video' 
     });
   }
 });

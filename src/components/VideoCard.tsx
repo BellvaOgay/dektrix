@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Play, Lock, Zap, Eye, Maximize, X, Heart } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { calculateBasePayPrice, isBasePayEnabled } from "@/lib/utils";
+import { paymasterService } from "@/lib/paymaster";
 import { deductCreditOnPlay, incrementPlayCount, tipVideo } from "@/api/videos";
 import { useBaseWallet } from "@/hooks/useBaseWallet";
 import { useVideoPlayer } from "@/contexts/VideoPlayerContext";
@@ -20,7 +21,7 @@ interface VideoCardProps {
   priceDisplay?: string; // Human readable price
   isLocked?: boolean;
   isFree?: boolean;
-  onUnlock?: (paymentMethod: 'crypto' | 'basepay') => void;
+  onUnlock?: (paymentMethod: 'crypto' | 'basepay' | 'bulk', transactionHash?: string) => void;
   videoId?: string; // Video ID for credit deduction
   onCreditUpdate?: (remainingCredits: number) => void; // Callback for credit updates
   onViewUpdate?: () => void; // Callback for view count updates
@@ -62,11 +63,15 @@ const VideoCard = ({
   const [isInitiallyMuted, setIsInitiallyMuted] = useState(true);
   const [isTipping, setIsTipping] = useState(false);
   const [showTipModal, setShowTipModal] = useState(false);
+  const [showVideoControls, setShowVideoControls] = useState(false);
+  const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [durationTime, setDurationTime] = useState(0);
   // Remove hasDeductedCredit state as we want to deduct credits on every play
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const modalVideoRef = useRef<HTMLVideoElement>(null);
-  const { user: walletUser } = useBaseWallet();
+  const { user: walletUser, sendGaslessTransaction } = useBaseWallet();
   const { currentPlayingVideo, setCurrentPlayingVideo, registerVideo, unregisterVideo } = useVideoPlayer();
   const { togglePortraitFullscreen } = usePortraitFullscreen();
 
@@ -83,6 +88,35 @@ const VideoCard = ({
       };
     }
   }, [videoId, registerVideo, unregisterVideo]);
+
+  // Update current time and duration for custom controls
+  useEffect(() => {
+    const video = modalVideoRef.current;
+    if (!video) return;
+
+    const updateTime = () => {
+      setCurrentTime(video.currentTime);
+      if (video.duration && !isNaN(video.duration)) {
+        setDurationTime(video.duration);
+      }
+    };
+
+    const updateDuration = () => {
+      if (video.duration && !isNaN(video.duration)) {
+        setDurationTime(video.duration);
+      }
+    };
+
+    video.addEventListener('timeupdate', updateTime);
+    video.addEventListener('durationchange', updateDuration);
+    video.addEventListener('loadedmetadata', updateDuration);
+
+    return () => {
+      video.removeEventListener('timeupdate', updateTime);
+      video.removeEventListener('durationchange', updateDuration);
+      video.removeEventListener('loadedmetadata', updateDuration);
+    };
+  }, [isModalMounted]);
 
   // Handle credit deduction when play button is clicked
   const handleCreditDeduction = async () => {
@@ -102,11 +136,11 @@ const VideoCard = ({
         }
 
         // If credits reach 0 after this deduction, show purchase prompt immediately
-        if (result.data.remainingCredits === 0) {
-          setTimeout(() => {
-            setShowPaymentOptions(true);
-          }, 1000); // Small delay to let the video start and user see the credit deduction
-        }
+         if (result.data.remainingCredits === 0) {
+           setTimeout(() => {
+             setShowPaymentOptions(true);
+           }, 1000); // Small delay to let the video start and user see the credit deduction
+         }
 
         // Trigger a refresh of user data to update credits in navbar
         // This will be handled by the parent component that has access to refreshUser
@@ -165,12 +199,21 @@ const VideoCard = ({
       console.log('Modal already closed, ignoring close call');
       return;
     }
+    
+    // Clear controls timeout
+    if (controlsTimeoutRef.current) {
+      clearTimeout(controlsTimeoutRef.current);
+      controlsTimeoutRef.current = null;
+    }
+    
     setIsModalVisible(false);
     setTimeout(() => {
       console.log('Modal closed, unmounting...');
       setIsModalMounted(false);
       // Reset audio state for next video
       setIsInitiallyMuted(true);
+      // Reset controls state
+      setShowVideoControls(false);
       // Pause modal video when closing
       if (modalVideoRef.current) {
         try { modalVideoRef.current.pause(); } catch { }
@@ -277,46 +320,26 @@ const VideoCard = ({
       return;
     }
 
-    // Deduct credit before allowing video playback
-    console.log('Attempting credit deduction...');
-    const canPlay = await handleCreditDeduction();
-    console.log('Credit deduction result:', canPlay);
+    // Always allow playback – credit gating removed
+    console.log('Opening modal (credit gating removed)...');
+    if (onClick) onClick();
 
-    if (canPlay === true) {
-      // Record view or other side-effects
-      if (onClick) onClick();
-
-      // Pause inline video to avoid double audio
-      if (videoRef.current) {
-        try { videoRef.current.pause(); } catch { }
-      }
-
-      console.log('Opening modal...');
-      console.log('Setting isModalMounted to true');
-      // Open modal with smooth transition
-      setIsModalMounted(true);
-      // Wait for mount before showing to trigger transition
-      requestAnimationFrame(() => {
-        console.log('Setting isModalVisible to true');
-        setIsModalVisible(true);
-      });
-    } else if (canPlay === 'insufficient_credits') {
-      // User ran out of credits - show payment options
-      console.log('Insufficient credits - showing payment options');
-      setShowPaymentOptions(true);
-    } else if (canPlay === false) {
-      // Other error occurred - show payment options as fallback
-      console.error('Cannot play video: Credit deduction failed');
-      setShowPaymentOptions(true);
+    // Pause inline video to avoid double audio
+    if (videoRef.current) {
+      try { videoRef.current.pause(); } catch { }
     }
+
+    console.log('Setting isModalMounted to true');
+    // Open modal with smooth transition
+    setIsModalMounted(true);
+    // Wait for mount before showing to trigger transition
+    requestAnimationFrame(() => {
+      console.log('Setting isModalVisible to true');
+      setIsModalVisible(true);
+    });
   };
 
-  const handlePayment = (paymentMethod: 'crypto' | 'basepay') => {
-    setShowPaymentOptions(false);
-    if (onUnlock) {
-      onUnlock(paymentMethod);
-    }
-  };
+
 
   // Lock body scroll and handle ESC
   useEffect(() => {
@@ -372,41 +395,39 @@ const VideoCard = ({
       aria-label={`Video card: ${title}`}
       data-video-id={videoId}
     >
-      {/* Payment Options Modal */}
+      {/* Credit Purchase Prompt Modal */}
       {showPaymentOptions && (
         <div className="absolute inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center rounded-2xl">
           <div className="bg-card p-6 rounded-xl border border-border max-w-sm w-full mx-4">
-            <h3 className="text-lg font-bold mb-4 text-center">Credits Needed</h3>
-            <p className="text-sm text-muted-foreground mb-6 text-center">
-              You need credits to watch videos. Each video view costs 1 credit.
+            <div className="flex items-center gap-3 mb-4">
+              <Lock className="w-6 h-6 text-blue-500" />
+              <h3 className="text-lg font-bold">Insufficient Credits</h3>
+            </div>
+            <p className="text-sm text-muted-foreground mb-4">
+              You need credits to watch this video. Each video view costs 1 credit.
+            </p>
+            <p className="text-sm text-blue-500 font-medium mb-6">
+              Purchase credits to continue watching videos.
             </p>
 
             <div className="space-y-3">
-              {/* Credit Purchase Button */}
               <button
                 onClick={() => {
                   setShowPaymentOptions(false);
-                  // This will be handled by the parent component's purchase credits function
+                  // Trigger credit purchase flow
                   window.dispatchEvent(new CustomEvent('purchaseCredits'));
                 }}
-                className="w-full p-4 border border-primary/50 bg-primary/5 rounded-lg hover:bg-primary/10 transition-colors flex items-center justify-center"
+                className="w-full p-3 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white rounded-lg font-medium transition-all duration-200 hover:scale-105"
               >
-                <div className="flex items-center gap-3">
-                  <Zap className="w-5 h-5 text-primary" />
-                  <div className="text-center">
-                    <div className="font-medium">Purchase Credits</div>
-                    <div className="text-sm text-muted-foreground">1 USDC = 10 Credits</div>
-                  </div>
-                </div>
+                Purchase Credits
+              </button>
+              <button
+                onClick={() => setShowPaymentOptions(false)}
+                className="w-full p-3 border border-border bg-background hover:bg-accent/50 text-foreground rounded-lg font-medium transition-colors"
+              >
+                Cancel
               </button>
             </div>
-
-            <button
-              onClick={() => setShowPaymentOptions(false)}
-              className="w-full mt-4 p-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Cancel
-            </button>
           </div>
         </div>
       )}
@@ -519,21 +540,21 @@ const VideoCard = ({
             {isLocked && (
               <div className="absolute inset-0 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center z-20 rounded-lg">
                 <Lock className="w-8 h-8 text-white mb-2" />
-                <p className="text-white text-sm font-medium mb-3 text-center px-4">
-                  Insufficient credits
+                <p className="text-white text-sm font-medium mb-2 text-center px-4">
+                  Video Locked
                 </p>
                 <p className="text-white/70 text-xs mb-3 text-center px-4">
-                  You need at least 1 credit to unlock videos
+                  Purchase credits to watch this video
                 </p>
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    // Dispatch custom event for credit purchase
+                    // Trigger credit purchase flow
                     window.dispatchEvent(new CustomEvent('purchaseCredits'));
                   }}
-                  className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 hover:scale-105"
+                  className="bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 hover:scale-105"
                 >
-                  Purchase Credits
+                  Buy Credits
                 </button>
               </div>
             )}
@@ -699,16 +720,42 @@ const VideoCard = ({
             </div>
             
             {/* Video Container */}
-            <div className="relative bg-black">
+            <div 
+              className="relative bg-black cursor-pointer"
+              onClick={(e) => {
+                e.stopPropagation();
+                
+                // Clear any existing timeout
+                if (controlsTimeoutRef.current) {
+                  clearTimeout(controlsTimeoutRef.current);
+                  controlsTimeoutRef.current = null;
+                }
+                
+                // Toggle controls visibility and get the new value
+                setShowVideoControls(prev => {
+                  const newValue = !prev;
+                  
+                  // If showing controls, set timeout to hide them after 3 seconds
+                  if (newValue) {
+                    controlsTimeoutRef.current = setTimeout(() => {
+                      setShowVideoControls(false);
+                      controlsTimeoutRef.current = null;
+                    }, 3000);
+                  }
+                  
+                  return newValue;
+                });
+              }}
+            >
               <div className="aspect-video">
                 <video
                   ref={modalVideoRef}
                   className="w-full h-full object-contain"
                   src={src}
-                  controls
                   muted={isInitiallyMuted}
                   playsInline
                   poster={thumbnail}
+                  controls={showVideoControls}
                   onPlay={() => {
                     console.log('Modal video playing:', title);
                     setIsVideoLoading(false);
@@ -752,6 +799,111 @@ const VideoCard = ({
                       <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
                       <p className="text-white text-sm">Loading video...</p>
                     </div>
+                  </div>
+                )}
+                
+                {/* Click to show controls overlay */}
+                {!showVideoControls && !isVideoLoading && !videoError && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 hover:opacity-100 transition-opacity duration-300">
+                    <div className="text-center">
+                      <div className="bg-white/20 backdrop-blur-sm rounded-full p-4 mb-2">
+                        <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                      </div>
+                      <p className="text-white text-sm font-medium">Click to show controls</p>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Custom video controls overlay */}
+                {showVideoControls && !isVideoLoading && !videoError && (
+                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (modalVideoRef.current) {
+                              if (modalVideoRef.current.paused) {
+                                modalVideoRef.current.play();
+                              } else {
+                                modalVideoRef.current.pause();
+                              }
+                            }
+                          }}
+                          className="p-2 bg-white/20 rounded-full hover:bg-white/30 transition-colors"
+                        >
+                          {modalVideoRef.current && !modalVideoRef.current.paused ? (
+                            <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                            </svg>
+                          ) : (
+                            <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+                            </svg>
+                          )}
+                        </button>
+                        
+                        <div className="text-white text-sm">
+                          {Math.floor(currentTime / 60)}:{
+                            Math.floor(currentTime % 60).toString().padStart(2, '0')
+                          }
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (modalVideoRef.current) {
+                              modalVideoRef.current.muted = !modalVideoRef.current.muted;
+                              setIsInitiallyMuted(modalVideoRef.current.muted);
+                            }
+                          }}
+                          className="p-2 bg-white/20 rounded-full hover:bg-white/30 transition-colors"
+                        >
+                          {modalVideoRef.current && modalVideoRef.current.muted ? (
+                            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
+                            </svg>
+                          ) : (
+                            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072M12 6a9 9 0 010 12" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9v6" />
+                            </svg>
+                          )}
+                        </button>
+                        
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (modalVideoRef.current) {
+                              modalVideoRef.current.requestFullscreen();
+                            }
+                          }}
+                          className="p-2 bg-white/20 rounded-full hover:bg-white/30 transition-colors"
+                        >
+                          <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                    
+                    {/* Progress bar */}
+                    {durationTime > 0 && (
+                      <div className="mt-2 w-full bg-white/20 rounded-full h-1">
+                        <div 
+                          className="bg-white h-1 rounded-full transition-all duration-300"
+                          style={{
+                            width: `${(currentTime / durationTime) * 100}%`
+                          }}
+                        />
+                      </div>
+                    )}
                   </div>
                 )}
                 {/* Error overlay */}

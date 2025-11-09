@@ -1,8 +1,8 @@
 import mongoose from 'mongoose';
-import { connectDB } from './_lib/database';
-import User from '../src/models/User';
-import Video from '../src/models/Video';
-import Transaction from '../src/models/Transaction';
+import connectDB from '../src/lib/database';
+import User from '../src/models/User.js';
+import Video from '../src/models/Video.js';
+import Transaction from '../src/models/Transaction.js';
 import { applyBasePay } from '../src/lib/utils';
 
 interface UnlockRequest {
@@ -26,18 +26,26 @@ export default async function handler(req: any, res: any) {
 
     // Validate required fields
     if (!userId || !videoId || !transactionHash || !paymentMethod || !amount) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Missing required fields: userId, videoId, transactionHash, paymentMethod, amount' 
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: userId, videoId, transactionHash, paymentMethod, amount'
       });
     }
 
-    // Validate amount is exactly 0.1 USDC (100000 wei)
-    if (amount !== 100000) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Invalid amount. Videos require exactly 0.1 USDC (100000 wei)' 
+    // Validate amount is either 0.1 USDC (100000 wei) or 1 USDC (1000000 wei)
+    if (amount !== 100000 && amount !== 1000000) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid amount. Videos require either 0.1 USDC (100000 wei) or 1 USDC (1000000 wei)'
       });
+    }
+    
+    // Calculate view credits based on payment amount
+    let viewCreditsToAdd = 0;
+    if (amount === 100000) {
+      viewCreditsToAdd = 1; // 0.1 USDC = 1 view credit
+    } else if (amount === 1000000) {
+      viewCreditsToAdd = 12; // 1 USDC = 12 view credits
     }
 
     // Check if video exists
@@ -54,18 +62,18 @@ export default async function handler(req: any, res: any) {
 
     // Check if already unlocked
     if (user.videosUnlocked.includes(new mongoose.Types.ObjectId(videoId))) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Video already unlocked' 
+      return res.status(400).json({
+        success: false,
+        error: 'Video already unlocked'
       });
     }
 
     // Check if transaction hash already exists (prevent double spending)
     const existingTransaction = await Transaction.findOne({ transactionHash });
     if (existingTransaction) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Transaction already processed' 
+      return res.status(400).json({
+        success: false,
+        error: 'Transaction already processed'
       });
     }
 
@@ -100,8 +108,9 @@ export default async function handler(req: any, res: any) {
 
     await transaction.save();
 
-    // Update user's unlocked videos
+    // Update user's unlocked videos and add view credits
     user.videosUnlocked.push(new mongoose.Types.ObjectId(videoId));
+    user.viewCredits = (user.viewCredits || 0) + viewCreditsToAdd;
     await user.save();
 
     // Update video stats
@@ -128,16 +137,18 @@ export default async function handler(req: any, res: any) {
         },
         user: {
           id: user._id,
-          unlockedVideosCount: user.videosUnlocked.length
+          unlockedVideosCount: user.videosUnlocked.length,
+          viewCredits: user.viewCredits,
+          creditsAdded: viewCreditsToAdd
         }
       }
     });
 
   } catch (error: any) {
     console.error('Error processing video unlock:', error);
-    return res.status(500).json({ 
-      success: false, 
-      error: 'Internal server error: ' + error.message 
+    return res.status(500).json({
+      success: false,
+      error: 'Internal server error: ' + error.message
     });
   }
 }

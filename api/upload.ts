@@ -1,8 +1,8 @@
 import { IncomingMessage, ServerResponse } from 'http';
 import { parse } from 'url';
-import formidable from 'formidable';
-import fs from 'fs';
-import path from 'path';
+import * as formidable from 'formidable';
+import * as fs from 'fs';
+import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 
 function send(res: ServerResponse, statusCode: number, data: any) {
@@ -61,8 +61,8 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     const uploadedFiles: { [key: string]: string } = {};
 
     // Process each uploaded file
-    for (const [fieldName, fileArray] of Object.entries(files)) {
-      if (!fileArray || fileArray.length === 0) continue;
+    for (const [fieldName, fileArray] of Object.entries(files as Record<string, any[]>)) {
+      if (!fileArray || (Array.isArray(fileArray) && fileArray.length === 0)) continue;
       
       const file = Array.isArray(fileArray) ? fileArray[0] : fileArray;
       if (!file || !file.filepath) continue;

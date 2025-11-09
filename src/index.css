@@ -99,22 +99,25 @@ All colors MUST be HSL.
   body {
     @apply bg-background text-foreground antialiased;
     background-image: url('./assets/cyberpunk-background.jpg');
-    background-size: cover;
+    background-size: 120% 120%;
     background-position: center;
     background-repeat: no-repeat;
-    background-attachment: scroll;
-    height: 100vh;
+    background-attachment: fixed;
+    min-height: 100vh;
     width: 100vw;
     margin: 0;
     padding: 0;
     overflow-x: hidden;
   }
 
-  /* Use fixed background on desktop only */
-  @media (min-width: 768px) {
-    body {
-      background-attachment: fixed;
-    }
+  /* Ensure the background covers the entire viewport */
+  html, body, #root {
+    min-height: 100vh;
+  }
+
+  /* Remove any potential white gaps around edges */
+  * {
+    box-sizing: border-box;
   }
 
   #root {

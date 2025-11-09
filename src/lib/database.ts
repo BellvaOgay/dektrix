@@ -1,11 +1,8 @@
 import mongoose from 'mongoose';
-import { logger } from '@/lib/logger';
+import { logger } from './logger';
 
-const MONGODB_URI = import.meta.env.VITE_MONGODB_URI || (typeof process !== 'undefined' ? process.env.MONGODB_URI : undefined);
-
-if (!MONGODB_URI) {
-  throw new Error('MONGODB_URI not defined in environment variables');
-}
+// Only attempt to connect to MongoDB on the server-side
+const MONGODB_URI = (typeof window === 'undefined' ? process.env.MONGODB_URI : undefined);
 
 interface MongooseCache {
   conn: typeof mongoose | null;
@@ -24,6 +21,17 @@ if (!cached) {
 }
 
 async function connectDB(): Promise<typeof mongoose> {
+  // In browser environment, return a mock mongoose instance
+  if (typeof window !== 'undefined') {
+    return mongoose;
+  }
+
+  // Server-side MongoDB connection
+  if (!MONGODB_URI) {
+    logger.log('📝 MongoDB URI not configured, using mock database');
+    return mongoose;
+  }
+
   if (cached!.conn) {
     return cached!.conn;
   }

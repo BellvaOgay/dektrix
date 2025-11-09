@@ -167,11 +167,13 @@ const VideoFeed = () => {
         const result = await getVideos({ limit: 20 });
         console.log('📺 API videos fetched:', result.data?.length || 0);
         
-        if (result.success && result.data?.length > 0) {
-          setVideos(result.data);
+        if (result.success) {
+          // Use API data even if empty array - don't fallback to local videos
+          setVideos(result.data || []);
+          console.log('✅ Using API videos (including empty results)');
         } else {
-          // Fallback to local videos
-          console.log('📁 Falling back to local videos...');
+          // Only fallback to local videos if API call failed (not success)
+          console.log('📁 API call failed, falling back to local videos...');
           const localVideos = await generateLocalVideos();
           console.log('📁 Local videos loaded:', localVideos.length);
           setVideos(localVideos);
@@ -292,7 +294,7 @@ const VideoFeed = () => {
   };
 
   // Handle video unlock with payment method selection
-  const handleVideoUnlock = async (videoId: string, paymentMethod: 'crypto' | 'basepay') => {
+  const handleVideoUnlock = async (videoId: string, paymentMethod: 'crypto' | 'basepay' | 'bulk', transactionHash?: string) => {
     if (!isConnected || !walletUser?._id) {
       toast({
         title: "Wallet Not Connected",
@@ -303,8 +305,8 @@ const VideoFeed = () => {
     }
 
     try {
-      // Generate a mock transaction hash for testing
-      const mockTransactionHash = `0x${Math.random().toString(16).substr(2, 64)}`;
+      // Use actual transaction hash if provided, otherwise generate mock for testing
+      const finalTransactionHash = transactionHash || `0x${Math.random().toString(16).substr(2, 64)}`;
 
       // Call the new video unlock API endpoint
       const response = await fetch('/api/video-unlock', {
@@ -315,7 +317,7 @@ const VideoFeed = () => {
         body: JSON.stringify({
           userId: walletUser._id,
           videoId: videoId,
-          transactionHash: mockTransactionHash,
+          transactionHash: finalTransactionHash,
           paymentMethod: paymentMethod,
           amount: 100000, // 0.1 USDC in wei
           amountDisplay: "0.1 USDC"
@@ -366,21 +368,8 @@ const VideoFeed = () => {
   const handleVideoClick = async (videoId: number) => {
     console.log(`handleVideoClick called for video ${videoId}`);
     try {
-      // Check if user has sufficient view credits for ALL videos
-      if (walletUser?.viewCredits < 1) {
-        toast({
-          title: 'No credits available',
-          description: 'Purchase credits to watch videos. You need at least 1 credit to unlock videos.'
-        });
-        return;
-      }
-
       if (isConnected && walletUser?._id) {
         const result = await recordVideoView(videoId.toString(), walletUser._id);
-        if (!result?.success && result?.error?.toLowerCase().includes('insufficient view credits')) {
-          toast({ title: 'No views left', description: 'Purchase credits to keep watching.' });
-          return;
-        }
         // Refresh user data to update view credits in real-time
         if (result?.success) {
           await refreshUser();
@@ -418,48 +407,7 @@ const VideoFeed = () => {
           <h2 className="text-2xl font-bold">
             Latest <span className="text-gradient">Drops</span>
           </h2>
-          <div className="flex items-center gap-4">
-            {isConnected && (
-              <div className="text-sm">
-                <span className="mr-2">Views left:</span>
-                <span className="font-semibold">{walletUser?.viewCredits ?? 0}</span>
-              </div>
-            )}
-            <button
-              className={`px-3 py-2 rounded text-white text-sm transition-colors ${!isConnected
-                ? 'bg-gray-400 cursor-not-allowed opacity-50'
-                : 'bg-blue-600 hover:bg-blue-700 cursor-pointer'
-                }`}
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                console.log('=== BUY VIEWS BUTTON DEBUG ===');
-                console.log('Button clicked!');
-                console.log('isConnected:', isConnected);
-                console.log('address:', address);
-                console.log('walletUser:', walletUser);
-                console.log('Button disabled:', !isConnected);
-                console.log('================================');
-
-                if (!isConnected) {
-                  console.log('Wallet not connected, button should be disabled');
-                  toast({
-                    title: "Wallet Not Connected",
-                    description: "Please connect your wallet first",
-                    variant: "destructive",
-                  });
-                  return;
-                }
-
-                purchaseCredits();
-              }}
-              disabled={!isConnected}
-              title={!isConnected ? "Connect your wallet first" : "Purchase 10 view credits for $1 USDC"}
-              type="button"
-            >
-              Buy 10 Views ($1 USDC)
-            </button>
-          </div>
+          <div className="flex items-center gap-4" />
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
@@ -469,13 +417,12 @@ const VideoFeed = () => {
             // Check if user has unlocked this video
             const isVideoUnlocked = walletUser?.videosUnlocked?.includes(id.toString()) || false;
 
-            // Lock videos when user has no credits (0 or less)
-            const hasCredits = walletUser?.viewCredits >= 1;
-            const isVideoLocked = !hasCredits; // Lock ALL videos when user has less than 1 credit
-            
-            // For testing: If user is connected, allow access to local videos
-            const shouldAllowAccess = isConnected && (hasCredits || video.isFree || video.videoUrl?.includes('/videos/'));
-            const finalIsLocked = !shouldAllowAccess;
+            // Determine if video should be locked
+            // Videos are locked if:
+            // 1. Video is not free AND
+            // 2. User hasn't unlocked it AND
+            // 3. (Wallet is not connected OR User has no view credits)
+            const finalIsLocked = !video.isFree && !isVideoUnlocked && (!isConnected || (walletUser?.viewCredits ?? 0) === 0);
 
             const videoPrice = video.price || 100000; // Default 0.1 USDC in wei
             const videoPriceDisplay = video.priceDisplay || "0.1 USDC";
@@ -485,8 +432,8 @@ const VideoFeed = () => {
               title: video.title,
               videoUrl: video.videoUrl,
               src: getVideoSrc(video),
-              isLocked: isVideoLocked,
-              hasCredits
+              isLocked: finalIsLocked,
+              hasCredits: walletUser?.viewCredits > 0
             });
 
             return (
@@ -508,9 +455,9 @@ const VideoFeed = () => {
                 totalTipsEarned={video.totalTipsEarned}
                 showTipButton={true}
                 onCreditUpdate={handleCreditUpdate}
-                onUnlock={(paymentMethod) => handleVideoUnlock(video.id?.toString() || id.toString(), paymentMethod)}
+                onUnlock={(paymentMethod, transactionHash) => handleVideoUnlock(video.id?.toString() || id.toString(), paymentMethod, transactionHash)}
                 onClick={() => {
-                  console.log(`Video ${video.id || id} clicked - locked: ${finalIsLocked}, hasCredits: ${hasCredits}, isFree: ${video.isFree}`);
+                  console.log(`Video ${video.id || id} clicked - locked: ${finalIsLocked}, hasCredits: ${walletUser?.viewCredits > 0}, isFree: ${video.isFree}`);
                   handleVideoClick(video.id || id);
                 }}
               />

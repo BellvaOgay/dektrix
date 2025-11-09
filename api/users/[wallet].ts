@@ -1,4 +1,4 @@
-import { connectDB } from '../_lib/database.js';
+import connectDB from '../../src/lib/database';
 import User from '../../src/models/User.js';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 

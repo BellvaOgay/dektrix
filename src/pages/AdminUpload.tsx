@@ -143,6 +143,7 @@ const AdminUpload: React.FC = () => {
         thumbnail: thumbnailUrl,
         isActive: true,
         creator: new mongoose.Types.ObjectId('507f1f77bcf86cd799439011'), // In a real app, this would be the current user's ID
+        isFree: false, // All uploaded videos should be locked by default
       });
 
       if (result.success) {

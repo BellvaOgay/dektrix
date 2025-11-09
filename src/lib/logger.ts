@@ -1,5 +1,5 @@
 // Production-safe logging utility
-const isDevelopment = import.meta.env.MODE === 'development';
+const isDevelopment = (typeof process !== 'undefined' ? process.env.NODE_ENV === 'development' : false);
 
 export const logger = {
   log: (...args: any[]) => {

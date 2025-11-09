@@ -4,7 +4,7 @@ import path from "path";
 import { componentTagger } from "lovable-tagger";
 
 // Import video middleware using require to avoid TypeScript module issues
-const { videoMiddleware } = require("./video-middleware.js");
+const { enhancedVideoMiddleware } = require("./video-middleware-dev.js");
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
@@ -30,7 +30,7 @@ export default defineConfig(({ mode }) => ({
       },
     },
   },
-  plugins: [react(), videoMiddleware(), mode === "development" && componentTagger()].filter(Boolean),
+  plugins: [react(), enhancedVideoMiddleware(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

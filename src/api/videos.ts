@@ -13,7 +13,7 @@ async function scanLocalVideos() {
   try {
     // Use the video scanner utility to discover local videos
     const discoveredVideos = await discoverLocalVideos();
-    
+
     return discoveredVideos.map((video, index) => ({
       _id: `local_${Date.now()}_${index}`,
       title: video.title,
@@ -47,17 +47,17 @@ async function scanLocalVideos() {
       { filename: 'Ep3.mp4', title: 'Episode 3', category: 'Entertainment', duration: 28 },
       { filename: 'Ep4.mp4', title: 'Episode 4', category: 'Entertainment', duration: 32 }
     ];
-    
+
     return fallbackVideos.map((video, index) => ({
       _id: `local_${Date.now()}_${index}`,
       title: video.title,
       category: video.category,
       duration: video.duration,
-      price: 0,
-      priceDisplay: 'Free',
+      price: 100000, // 0.1 USDC (matches database pricing)
+      priceDisplay: '0.1 USDC',
       thumbnail: '/placeholder.svg',
-      isFree: true,
-      isUnlocked: true,
+      isFree: false, // Most videos should be paid
+      isUnlocked: false, // Videos should start locked
       videoUrl: `/videos/${video.filename}`,
       description: `Local video: ${video.title}`,
       totalViews: Math.floor(Math.random() * 1000),
@@ -219,7 +219,7 @@ export async function createVideo(videoData: Partial<IVideo>) {
     // In browser environment, use serverless API for persistence
     if (typeof window !== 'undefined') {
       logger.debug('🌐 Creating video via API endpoint');
-      
+
       // In dev mode, check if we can reach the API
       if (import.meta.env.DEV) {
         try {
@@ -557,7 +557,7 @@ export async function recordVideoView(videoId: string, userId?: string) {
       $inc: { totalViews: 1 }
     });
 
-    // If user is provided, gate by credits and update stats
+    // If user is provided, record view without gating by credits
     if (userId) {
       const user = await (User as any).findById(userId);
       if (!user) {
@@ -566,68 +566,7 @@ export async function recordVideoView(videoId: string, userId?: string) {
           error: 'User not found'
         };
       }
-
-      // ALL videos now require credits - no free videos
-      // Require available credits (stop when credits reach 0)
-      if (!user.viewCredits || user.viewCredits <= 0) {
-        return {
-          success: false,
-          error: 'Insufficient view credits'
-        };
-      }
-      // Deduct one credit for ALL videos
-      user.viewCredits -= 1;
-      await user.save();
-
-      // Determine per-view attribution amount (only for non-free videos)
-      const isFree = !!video.isFree;
-      let perViewAmount = 0;
-      let transaction: any = null;
-
-      if (!isFree) {
-        perViewAmount = getPerViewChargeAmount();
-        const { finalAmount, basePayAmount, basePayApplied } = applyBasePay(perViewAmount);
-
-        // Record view transaction (paid by credits)
-        transaction = new Transaction({
-          user: userId,
-          video: videoId,
-          type: 'view',
-          amount: finalAmount,
-          amountDisplay: formatUSDC(finalAmount),
-          paymentMethod: 'credit',
-          status: 'completed',
-          metadata: {
-            basePayAmount,
-            basePayApplied,
-            deductedCredits: 1,
-          },
-        });
-        await transaction.save();
-
-        // Update video earnings and creator earnings by per-view amount
-        await (Video as any).findByIdAndUpdate(videoId, {
-          $inc: { totalTipsEarned: finalAmount }
-        });
-        await (User as any).findByIdAndUpdate(video.creator, {
-          $inc: { totalTipsEarned: finalAmount }
-        });
-      } else {
-        // For free videos, still deduct credits but record zero-amount transaction
-        transaction = new Transaction({
-          user: userId,
-          video: videoId,
-          type: 'view',
-          amount: 0,
-          amountDisplay: 'FREE',
-          paymentMethod: 'credit',
-          status: 'completed',
-          metadata: { deductedCredits: 1, basePayApplied: false, basePayAmount: 0 },
-        });
-        await transaction.save();
-      }
-
-      // Update user's watched set (no spend here - spend recorded at purchase time)
+      // Update user's watched set
       await (User as any).findByIdAndUpdate(userId, {
         $addToSet: { videosWatched: videoId }
       });
@@ -635,10 +574,8 @@ export async function recordVideoView(videoId: string, userId?: string) {
       return {
         success: true,
         data: {
-          transaction,
           videoId,
           userId,
-          remainingCredits: user.viewCredits,
         }
       };
     }
@@ -671,7 +608,7 @@ export async function incrementPlayCount(videoId: string) {
     });
 
     const data = await response.json();
-    
+
     if (!response.ok) {
       throw new Error(data.error || 'Failed to increment play count');
     }
@@ -695,22 +632,24 @@ export async function incrementPlayCount(videoId: string) {
 // Function to deduct credit when video starts playing
 export async function deductCreditOnPlay(walletAddress: string, videoId: string) {
   try {
-    const response = await fetch('/api/videos/actions', {
+    const response = await fetch('/api/videos/deduct-credit', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        action: 'unlock',
         walletAddress,
         videoId
       }),
     });
 
     const data = await response.json();
-    
+
     if (!response.ok) {
-      throw new Error(data.error || 'Failed to deduct credit');
+      return {
+        success: false,
+        error: data.error || 'Failed to deduct credit'
+      };
     }
 
     return {
@@ -718,11 +657,11 @@ export async function deductCreditOnPlay(walletAddress: string, videoId: string)
       data: {
         remainingCredits: data.remainingCredits,
         transaction: data.transaction,
-        message: data.message
+        message: data.message || 'Credit deducted successfully'
       }
     };
   } catch (error) {
-    console.error('Error deducting credit on play:', error);
+    console.error('Error deducting credit:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'
@@ -746,7 +685,7 @@ export async function tipVideo(videoId: string, tipperWallet: string, amount: nu
     });
 
     const data = await response.json();
-    
+
     if (!response.ok) {
       throw new Error(data.error || 'Failed to send tip');
     }
@@ -777,7 +716,7 @@ export async function uploadVideo(formData: FormData) {
     });
 
     const data = await response.json();
-    
+
     if (!response.ok) {
       throw new Error(data.error || 'Failed to upload video');
     }
