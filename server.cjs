@@ -196,7 +196,25 @@ app.post('/api/users/create', async (req, res) => {
       });
     } else {
       // Create new user with wallet address
-      const username = userData?.username || `user_${walletAddress.slice(-8)}`;
+      let username = userData?.username || `user_${walletAddress.slice(-8)}`;
+      
+      // Function to generate unique username if the requested one is taken
+      const generateUniqueUsername = async (baseUsername) => {
+        let counter = 1;
+        let uniqueUsername = baseUsername;
+        
+        while (true) {
+          const existingUser = await User.findOne({ username: uniqueUsername });
+          if (!existingUser) {
+            return uniqueUsername;
+          }
+          uniqueUsername = `${baseUsername}${counter}`;
+          counter++;
+        }
+      };
+      
+      // Generate a unique username
+      username = await generateUniqueUsername(username);
 
       user = new User({
         walletAddress: walletAddress.toLowerCase(),

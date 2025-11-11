@@ -1,5 +1,5 @@
-import { connectDB } from './database';
-import User from '../../src/models/User';
+import { connectDB } from './database.js';
+import User from '../../src/models/User.js';
 
 export interface WalletVerificationResult {
   verified: boolean;

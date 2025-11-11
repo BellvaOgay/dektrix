@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import connectDB from '../../src/lib/database';
+import connectDB from '../../src/lib/database.js';
 import Video from '../../src/models/Video.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {

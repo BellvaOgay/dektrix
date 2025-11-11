@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getWalletConnectionStatus, verifyWalletConnection } from './_lib/wallet-verification';
+import { getWalletConnectionStatus, verifyWalletConnection } from './_lib/wallet-verification.js';
 
 export default async function handler(
   req: VercelRequest,

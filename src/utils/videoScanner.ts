@@ -22,7 +22,8 @@ export function scanLocalVideos(): LocalVideoFile[] {
     { filename: 'Ep1.mp4', title: 'Episode 1', category: 'Entertainment', duration: 25, description: 'First episode of the series' },
     { filename: 'Eps2.mp4', title: 'Episode 2', category: 'Entertainment', duration: 30, description: 'Second episode of the series' },
     { filename: 'Ep3.mp4', title: 'Episode 3', category: 'Entertainment', duration: 28, description: 'Third episode of the series' },
-    { filename: 'Ep4.mp4', title: 'Episode 4', category: 'Entertainment', duration: 32, description: 'Fourth episode of the series' }
+    { filename: 'Ep4.mp4', title: 'Episode 4', category: 'Entertainment', duration: 32, description: 'Fourth episode of the series' },
+    { filename: 'Ep5.mp4', title: 'Episode 5', category: 'Entertainment', duration: 35, description: 'Fifth episode of the series' }
   ];
 
   return knownVideos;

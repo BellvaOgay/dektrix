@@ -45,7 +45,8 @@ async function scanLocalVideos() {
       { filename: 'Ep1.mp4', title: 'Episode 1', category: 'Entertainment', duration: 25 },
       { filename: 'Eps2.mp4', title: 'Episode 2', category: 'Entertainment', duration: 30 },
       { filename: 'Ep3.mp4', title: 'Episode 3', category: 'Entertainment', duration: 28 },
-      { filename: 'Ep4.mp4', title: 'Episode 4', category: 'Entertainment', duration: 32 }
+      { filename: 'Ep4.mp4', title: 'Episode 4', category: 'Entertainment', duration: 32 },
+      { filename: 'Ep5.mp4', title: 'Episode 5', category: 'Entertainment', duration: 35 }
     ];
 
     return fallbackVideos.map((video, index) => ({

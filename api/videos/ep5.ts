@@ -1,75 +1,80 @@
-import type { IncomingMessage, ServerResponse } from 'http';
+import type { VercelRequest, VercelResponse } from '@vercel/node';
 import connectDB from '../../src/lib/database';
 import Video from '../../src/models/Video.js';
 
-export default async function handler(req: IncomingMessage & { method?: string }, res: ServerResponse) {
-  if (req.method !== 'GET') {
-    res.statusCode = 405;
-    res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify({ error: 'Method not allowed' }));
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Add CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    res.statusCode = 200;
+    res.end();
     return;
+  }
+
+  if (req.method !== 'GET') {
+    return res.status(405).json({ success: false, error: 'Method Not Allowed' });
   }
 
   try {
     // Connect to database
     await connectDB();
 
-    // Find Esp5 video by title (case insensitive search for Ep5)
-    const esp5Video = await (Video as any)
+    // Find Ep5 video by title or filename (case insensitive search)
+    const ep5Video = await (Video as any)
       .findOne({
         $or: [
           { title: { $regex: /Ep5/i } },
+          { filename: { $regex: /Ep5\.mp4$/i } },
           { videoUrl: { $regex: /Ep5\.mp4$/i } }
-        ]
+        ],
+        isActive: true
       })
       .populate('creator', 'username displayName avatar')
       .lean();
 
-    if (!esp5Video) {
-      res.statusCode = 404;
-      res.setHeader('Content-Type', 'application/json');
-      res.end(JSON.stringify({ error: 'Esp5 video not found' }));
-      return;
+    if (!ep5Video) {
+      return res.status(404).json({ success: false, error: 'Ep5 video not found' });
     }
 
     // Return the video data
-    res.statusCode = 200;
-    res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify({
+    return res.status(200).json({
       success: true,
       data: {
-        _id: esp5Video._id,
-        title: esp5Video.title,
-        description: esp5Video.description || 'Ep5 - Premium content',
-        videoUrl: esp5Video.videoUrl,
-        thumbnail: esp5Video.thumbnail || '/placeholder.svg',
-        duration: esp5Video.duration || 0,
-        category: esp5Video.category || 'Entertainment',
-        price: esp5Video.price || 100000, // Default to 0.1 USDC if not set
-        priceDisplay: esp5Video.priceDisplay || '0.1 USDC',
-        isFree: esp5Video.isFree || false,
-        isUnlocked: esp5Video.isUnlocked || false,
-        totalViews: esp5Video.totalViews || 0,
-        totalUnlocks: esp5Video.totalUnlocks || 0,
-        createdAt: esp5Video.createdAt,
-        creator: esp5Video.creator ? {
-          _id: esp5Video.creator._id,
-          username: esp5Video.creator.username,
-          displayName: esp5Video.creator.displayName,
-          avatar: esp5Video.creator.avatar
+        _id: ep5Video._id,
+        title: ep5Video.title,
+        description: ep5Video.description || 'Ep5 - Premium content',
+        videoUrl: ep5Video.videoUrl,
+        filename: ep5Video.filename || 'Ep5.mp4',
+        thumbnail: ep5Video.thumbnail || '/placeholder.svg',
+        duration: ep5Video.duration || 0,
+        category: ep5Video.category || 'Entertainment',
+        price: ep5Video.price || 100000, // Default to 0.1 USDC if not set
+        priceDisplay: ep5Video.priceDisplay || '0.1 USDC',
+        isFree: ep5Video.isFree || false,
+        isUnlocked: ep5Video.isUnlocked || false,
+        totalViews: ep5Video.totalViews || 0,
+        totalUnlocks: ep5Video.totalUnlocks || 0,
+        createdAt: ep5Video.createdAt,
+        creator: ep5Video.creator ? {
+          _id: ep5Video.creator._id,
+          username: ep5Video.creator.username,
+          displayName: ep5Video.creator.displayName,
+          avatar: ep5Video.creator.avatar
         } : null,
-        shouldBeLocked: !esp5Video.isFree && (esp5Video.price > 0),
+        shouldBeLocked: !ep5Video.isFree && (ep5Video.price > 0),
         isEp5: true
       }
-    }));
+    });
 
   } catch (error) {
-    console.error('Error fetching Esp5 video:', error);
-    res.statusCode = 500;
-    res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify({
+    console.error('Error fetching Ep5 video:', error);
+    return res.status(500).json({
       success: false,
-      error: 'Failed to fetch Esp5 video'
-    }));
+      error: 'Failed to fetch Ep5 video'
+    });
   }
 }

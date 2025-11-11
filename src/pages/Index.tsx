@@ -34,24 +34,6 @@ const Index = () => {
           <VideoFeed />
         </CategoryProvider>
       </main>
-
-      {/* Test button for modal functionality */}
-      <div className="fixed bottom-4 right-4 z-50">
-        <Button onClick={() => setShowModal(true)}>
-          Test Modal
-        </Button>
-      </div>
-
-      <Dialog open={showModal} onOpenChange={setShowModal}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Test Modal</DialogTitle>
-          </DialogHeader>
-          <div className="p-4">
-            <p>This is a test modal for functionality verification.</p>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };

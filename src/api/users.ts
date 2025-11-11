@@ -525,8 +525,21 @@ export async function addViewCredits(walletAddress: string, creditsToAdd: number
       })
     });
 
+    // Check if response is OK and has content
     if (!response.ok) {
-      const errorData = await response.json();
+      let errorData;
+      try {
+        errorData = await response.json();
+      } catch (jsonError) {
+        // If JSON parsing fails, use text response
+        const textError = await response.text();
+        console.error('❌ API response not ok (non-JSON):', response.status, textError);
+        return {
+          success: false,
+          error: `HTTP error! status: ${response.status}, response: ${textError}`
+        };
+      }
+      
       console.error('❌ API response not ok:', response.status, errorData);
       return {
         success: false,
@@ -534,8 +547,18 @@ export async function addViewCredits(walletAddress: string, creditsToAdd: number
       };
     }
 
-    const result = await response.json();
-    console.log('✅ Credits added successfully:', result);
+    // Parse successful response
+    let result;
+    try {
+      result = await response.json();
+      console.log('✅ Credits added successfully:', result);
+    } catch (jsonError) {
+      console.error('❌ Failed to parse JSON response:', jsonError);
+      return {
+        success: false,
+        error: 'Invalid response format from server'
+      };
+    }
 
     return result;
   } catch (error: any) {
@@ -559,7 +582,19 @@ export async function getUserCredits(walletAddress: string) {
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
+      let errorData;
+      try {
+        errorData = await response.json();
+      } catch (jsonError) {
+        // If JSON parsing fails, use text response
+        const textError = await response.text();
+        console.error('❌ Failed to fetch user credits (non-JSON):', response.status, textError);
+        return {
+          success: false,
+          error: `HTTP error! status: ${response.status}, response: ${textError}`
+        };
+      }
+      
       console.error('❌ Failed to fetch user credits:', errorData);
       return {
         success: false,

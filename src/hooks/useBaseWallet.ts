@@ -271,7 +271,7 @@ export const useBaseWallet = (): UseBaseWalletReturn => {
         body: JSON.stringify({
           walletAddress: walletAddress,
           userData: {
-            username: `user_${walletAddress.slice(-8)}`,
+            // Let backend handle username generation to avoid duplicates
             displayName: `User ${walletAddress.slice(-8)}`
           }
         })
