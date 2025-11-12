@@ -523,11 +523,11 @@ export async function addViewCredits(walletAddress: string, creditsToAdd: number
       return response;
     };
 
-    let response = await tryRequest(`${API_BASE}/api/users/add-credits`, { walletAddress, creditsToAdd });
+    let response = await tryRequest(`${API_BASE}/api/users/actions?slug=${encodeURIComponent(walletAddress)},add-credits`, { amount: creditsToAdd });
     if (!response.ok && response.status === 404) {
-      response = await tryRequest(`${API_BASE}/api/users/actions?slug=${encodeURIComponent(walletAddress)},add-credits`, { amount: creditsToAdd });
+      response = await tryRequest(`${API_BASE}/api/users/${walletAddress}/actions?action=add-credits`, { amount: creditsToAdd });
       if (!response.ok && response.status === 404) {
-        response = await tryRequest(`${API_BASE}/api/users/${walletAddress}/actions?action=add-credits`, { amount: creditsToAdd });
+        response = await tryRequest(`${API_BASE}/api/users/add-credits`, { walletAddress, creditsToAdd });
       }
     }
 

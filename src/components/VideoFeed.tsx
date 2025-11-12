@@ -210,13 +210,17 @@ const VideoFeed = () => {
 
       const network = getCurrentNetwork();
       const env = (import.meta as any).env ?? {};
-      // Sanitize and validate addresses from environment
-      const stripQuotes = (s?: string) => s?.replace(/^['"]+|['"]+$/g, '').trim();
+      const sanitize = (s?: string) => {
+        let t = (s ?? '').normalize();
+        t = t.replace(/['"\u200B-\u200D\uFEFF\s]/g, '').trim();
+        const m = t.match(/0x[0-9a-fA-F]{40}/);
+        return (m ? m[0] : t).toLowerCase();
+      };
       const receiverRaw = env.VITE_CREDITS_RECEIVER_ADDRESS as string | undefined;
       const usdcMainnetRaw = env.VITE_USDC_MAINNET_ADDRESS as string | undefined;
       const usdcTestnetRaw = env.VITE_USDC_TESTNET_ADDRESS as string | undefined;
 
-      const receiverTrimmed = stripQuotes(receiverRaw);
+      const receiverTrimmed = sanitize(receiverRaw);
       if (!receiverTrimmed) {
         toast({ title: 'Receiver not configured', description: 'Set VITE_CREDITS_RECEIVER_ADDRESS in your environment.' });
         return;
@@ -226,10 +230,17 @@ const VideoFeed = () => {
         console.error('❌ Invalid receiver address:', receiverTrimmed);
         return;
       }
-      const receiver = getAddress(receiverTrimmed) as `0x${string}`; // checksummed
+      let receiver: `0x${string}`;
+      try {
+        receiver = getAddress(receiverTrimmed) as `0x${string}`;
+      } catch (e) {
+        console.error('❌ Failed to checksum receiver address:', receiverTrimmed, e);
+        toast({ title: 'Invalid receiver address', description: 'Receiver address could not be parsed.' });
+        return;
+      }
 
-      const usdcMainnetTrimmed = stripQuotes(usdcMainnetRaw);
-      const usdcTestnetTrimmed = stripQuotes(usdcTestnetRaw);
+      const usdcMainnetTrimmed = sanitize(usdcMainnetRaw);
+      const usdcTestnetTrimmed = sanitize(usdcTestnetRaw);
 
       const isTestnet = Boolean(network?.isTestnet) || String(network?.chainId) === '84532' || String(network?.name || '').toLowerCase().includes('sepolia');
       const usdcAddressRaw = isTestnet ? usdcTestnetTrimmed : usdcMainnetTrimmed;
@@ -242,7 +253,14 @@ const VideoFeed = () => {
         console.error('❌ Invalid USDC contract address:', usdcAddressRaw);
         return;
       }
-      const usdcAddress = getAddress(usdcAddressRaw) as `0x${string}`;
+      let usdcAddress: `0x${string}`;
+      try {
+        usdcAddress = getAddress(usdcAddressRaw) as `0x${string}`;
+      } catch (e) {
+        console.error('❌ Failed to checksum USDC address:', usdcAddressRaw, e);
+        toast({ title: 'Invalid USDC address', description: 'USDC address could not be parsed.' });
+        return;
+      }
 
       // 1 USDC with 6 decimals
       const amount = 1_000_000n;

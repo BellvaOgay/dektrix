@@ -2,7 +2,11 @@ import connectDB from "../../src/lib/database.js";
 export default async function handler(req, res) {
     try {
         const { slug } = req.query;
-        const [wallet, action] = Array.isArray(slug) ? slug : [slug];
+        const parts = Array.isArray(slug)
+            ? slug
+            : (typeof slug === 'string' ? slug.split(',') : []);
+        const wallet = parts[0];
+        const action = parts[1] || (req.method === 'GET' ? 'get-profile' : undefined);
         if (!wallet) {
             return res.status(400).json({ error: 'Wallet address is required' });
         }
@@ -48,12 +52,16 @@ async function getUserProfile(db, wallet, res) {
         if (!user) {
             return res.status(404).json({ error: 'User not found' });
         }
-        return res.status(200).json({
+        const viewCredits = (user.viewCredits ?? user.credits ?? 0);
+        return res.status(200).json({ success: true, data: {
+            _id: user._id,
             walletAddress: user.walletAddress,
-            credits: user.credits || 0,
+            username: user.username,
+            viewCredits,
+            credits: viewCredits,
             createdAt: user.createdAt,
             lastLoginAt: user.lastLoginAt
-        });
+        }});
     }
     catch (error) {
         console.error('Get user profile error:', error);
@@ -107,13 +115,15 @@ async function addCredits(db, wallet, req, res) {
             return res.status(400).json({ error: 'Invalid amount' });
         }
         const result = await db.collection('users').updateOne({ walletAddress: wallet.toLowerCase() }, {
-            $inc: { credits: amount },
+            $inc: { credits: amount, viewCredits: amount },
             $set: { lastLoginAt: new Date() }
         });
         if (result.matchedCount === 0) {
             return res.status(404).json({ error: 'User not found' });
         }
-        return res.status(200).json({ success: true, amount });
+        const updated = await db.collection('users').findOne({ walletAddress: wallet.toLowerCase() }, { projection: { _id: 1, username: 1, walletAddress: 1, credits: 1, viewCredits: 1 } });
+        const viewCredits = (updated.viewCredits ?? updated.credits ?? 0);
+        return res.status(200).json({ success: true, data: { viewCredits, creditsAdded: amount, user: { _id: updated._id, username: updated.username, walletAddress: updated.walletAddress } } });
     }
     catch (error) {
         console.error('Add credits error:', error);
@@ -155,22 +165,23 @@ async function createUser(db, wallet, req, res) {
     try {
         const existingUser = await db.collection('users').findOne({ walletAddress: wallet.toLowerCase() });
         if (existingUser) {
-            return res.status(200).json({ message: 'User already exists', user: existingUser });
+            return res.status(200).json({ success: true, data: existingUser, isNewUser: false });
         }
+        const now = new Date();
         const newUser = {
             walletAddress: wallet.toLowerCase(),
-            credits: 0,
+            username: `user_${wallet.slice(-8)}`,
+            credits: 1,
+            viewCredits: 1,
             tipBalance: 0,
             totalTipsReceived: 0,
-            createdAt: new Date(),
-            lastLoginAt: new Date()
+            createdAt: now,
+            lastLoginAt: now,
+            isActive: true
         };
         const result = await db.collection('users').insertOne(newUser);
-        return res.status(201).json({
-            success: true,
-            userId: result.insertedId,
-            walletAddress: wallet.toLowerCase()
-        });
+        newUser._id = result.insertedId;
+        return res.status(201).json({ success: true, data: newUser, isNewUser: true });
     }
     catch (error) {
         console.error('Create user error:', error);

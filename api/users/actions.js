@@ -115,7 +115,7 @@ async function addCredits(db, wallet, req, res) {
             return res.status(400).json({ error: 'Invalid amount' });
         }
         const result = await db.collection('users').updateOne({ walletAddress: wallet.toLowerCase() }, {
-            $inc: { credits: amount },
+            $inc: { credits: amount, viewCredits: amount },
             $set: { lastLoginAt: new Date() }
         });
         if (result.matchedCount === 0) {
