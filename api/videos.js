@@ -88,6 +88,36 @@ export default async function handler(req, res) {
                 .limit(limit)
                 .skip(skip)
                 .toArray();
+            try {
+                const needEpisodes = ['Ep1', 'Ep2', 'Ep3', 'Ep4', 'Ep5', 'Ep6'];
+                const present = new Set((videos || []).map(v => (v.title || '').toLowerCase()));
+                const makeStub = (ep) => ({
+                    _id: `stub-${ep.toLowerCase()}`,
+                    id: `stub-${ep.toLowerCase()}`,
+                    title: `${ep} - Premium Content`,
+                    description: `${ep} - Premium content`,
+                    thumbnail: '/placeholder.svg',
+                    videoUrl: `/videos/${ep}.mp4`,
+                    duration: 0,
+                    category: 'Entertainment',
+                    price: 100000,
+                    priceDisplay: '0.1 USDC',
+                    tipAmount: 100000,
+                    tipAmountDisplay: '0.1 USDC',
+                    difficulty: 'Beginner',
+                    totalViews: 0,
+                    totalUnlocks: 0,
+                    isActive: true,
+                    featured: false,
+                    isFree: false,
+                });
+                for (const ep of needEpisodes) {
+                    const key = ep.toLowerCase();
+                    const has = [...present].some(t => t.includes(key));
+                    if (!has) videos.push(makeStub(ep));
+                }
+            }
+            catch {}
             return send(res, 200, { success: true, data: videos });
         }
         catch (error) {

@@ -2,6 +2,7 @@
 Write-Host "Testing Vercel API endpoints..."
 
 $baseUrl = "https://dektrix.vercel.app"
+$wallet = "0xA1b2c3D4e5F6078901234567890abcDEF1234567"
 
 Write-Host "Testing homepage..."
 try {
@@ -15,7 +16,7 @@ try {
 # Test 1: Get profile for test user
 Write-Host "Testing profile endpoint..."
 try {
-    $response = Invoke-WebRequest -Uri "$baseUrl/api/users/actions?slug=test&slug=get-profile" -Method Get
+    $response = Invoke-WebRequest -Uri "$baseUrl/api/users/actions?slug=$wallet,get-profile" -Method Get
     Write-Host "Profile API Response: $($response.StatusCode)"
     Write-Host "Content: $($response.Content)"
 } catch {
@@ -24,16 +25,25 @@ try {
 
 Write-Host "Creating test user..."
 try {
-    $response = Invoke-WebRequest -Uri "$baseUrl/api/users/actions?slug=test&slug=create" -Method Post -ContentType "application/json" -Body "{}"
+    $response = Invoke-WebRequest -Uri "$baseUrl/api/users/actions?slug=$wallet,create" -Method Post -ContentType "application/json" -Body "{}"
     Write-Host "Create User Response: $($response.StatusCode)"
     Write-Host "Content: $($response.Content)"
 } catch {
     Write-Host "Create User Error: $($_.Exception.Message)"
 }
 
+Write-Host "Adding credits (10)..."
+try {
+    $response = Invoke-WebRequest -Uri "$baseUrl/api/users/actions?slug=$wallet,add-credits" -Method Post -ContentType "application/json" -Body '{"amount":10}'
+    Write-Host "Add Credits Response: $($response.StatusCode)"
+    Write-Host "Content: $($response.Content)"
+} catch {
+    Write-Host "Add Credits Error: $($_.Exception.Message)"
+}
+
 Write-Host "Re-checking profile..."
 try {
-    $response = Invoke-WebRequest -Uri "$baseUrl/api/users/actions?slug=test&slug=get-profile" -Method Get
+    $response = Invoke-WebRequest -Uri "$baseUrl/api/users/actions?slug=$wallet,get-profile" -Method Get
     Write-Host "Profile API Response: $($response.StatusCode)"
     Write-Host "Content: $($response.Content)"
 } catch {

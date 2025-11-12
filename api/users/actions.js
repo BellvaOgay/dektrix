@@ -2,7 +2,11 @@ import connectDB from "../../src/lib/database.js";
 export default async function handler(req, res) {
     try {
         const { slug } = req.query;
-        const [wallet, action] = Array.isArray(slug) ? slug : [slug];
+        const parts = Array.isArray(slug)
+            ? slug
+            : (typeof slug === 'string' ? slug.split(',') : []);
+        const wallet = parts[0];
+        const action = parts[1] || (req.method === 'GET' ? 'get-profile' : undefined);
         if (!wallet) {
             return res.status(400).json({ error: 'Wallet address is required' });
         }
