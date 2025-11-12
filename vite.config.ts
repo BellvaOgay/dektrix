@@ -35,15 +35,25 @@ export default defineConfig(({ mode }) => ({
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
+    extensions: [".ts", ".tsx", ".js", ".jsx", ".json"],
+  },
+  optimizeDeps: {
+    exclude: ['viem', 'ox'],
   },
   build: {
-    chunkSizeWarningLimit: 1000,
+    chunkSizeWarningLimit: 2000,
     rollupOptions: {
       output: {
-        manualChunks: {
-          vendor: ['react', 'react-dom'],
-          wallet: ['@base-org/account', 'viem'],
-          ui: ['@radix-ui/react-dialog', '@radix-ui/react-slot', 'class-variance-authority'],
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('react-router-dom')) return 'router';
+            if (id.includes('@tanstack/react-query')) return 'query';
+            if (id.includes('ethers')) return 'ethers';
+            if (id.includes('@coinbase/wallet-sdk')) return 'wallet';
+            if (id.includes('@radix-ui')) return 'radix';
+            if (id.includes('lucide-react')) return 'icons';
+            return 'vendor';
+          }
         },
       },
     },

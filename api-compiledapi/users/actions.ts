@@ -1,0 +1,218 @@
+import type { VercelRequest, VercelResponse } from '@vercel/node';
+import connectDB from '../../src/lib/database';
+import { ObjectId } from 'mongodb';
+
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  try {
+    const { slug } = req.query;
+    const [wallet, action] = Array.isArray(slug) ? slug : [slug];
+    
+    if (!wallet) {
+      return res.status(400).json({ error: 'Wallet address is required' });
+    }
+
+    const mongoose = await connectDB();
+    const db = mongoose.connection.db;
+    
+    if (!db) {
+      return res.status(500).json({ error: 'Database connection failed' });
+    }
+
+    switch (req.method) {
+      case 'GET':
+        // Handle different GET actions
+        switch (action) {
+          case 'tip-balance':
+            return await getTipBalance(db, wallet, res);
+          case 'uploaded-videos':
+            return await getUploadedVideos(db, wallet, res);
+          case 'withdrawal-history':
+            return await getWithdrawalHistory(db, wallet, res);
+          default:
+            return await getUserProfile(db, wallet, res);
+        }
+
+      case 'POST':
+        // Handle different POST actions
+        switch (action) {
+          case 'add-credits':
+            return await addCredits(db, wallet, req, res);
+          case 'withdraw':
+            return await processWithdrawal(db, wallet, req, res);
+          case 'create':
+            return await createUser(db, wallet, req, res);
+          default:
+            return res.status(400).json({ error: 'Invalid action' });
+        }
+
+      default:
+        return res.status(405).json({ error: 'Method not allowed' });
+    }
+  } catch (error) {
+    console.error('User API error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+async function getUserProfile(db: any, wallet: string, res: VercelResponse) {
+  try {
+    const user = await db.collection('users').findOne({ walletAddress: wallet.toLowerCase() });
+    
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    return res.status(200).json({
+      walletAddress: user.walletAddress,
+      credits: user.credits || 0,
+      createdAt: user.createdAt,
+      lastLoginAt: user.lastLoginAt
+    });
+  } catch (error) {
+    console.error('Get user profile error:', error);
+    return res.status(500).json({ error: 'Failed to fetch user profile' });
+  }
+}
+
+async function getTipBalance(db: any, wallet: string, res: VercelResponse) {
+  try {
+    const user = await db.collection('users').findOne({ walletAddress: wallet.toLowerCase() });
+    
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    return res.status(200).json({ 
+      tipBalance: user.tipBalance || 0,
+      totalTipsReceived: user.totalTipsReceived || 0
+    });
+  } catch (error) {
+    console.error('Get tip balance error:', error);
+    return res.status(500).json({ error: 'Failed to fetch tip balance' });
+  }
+}
+
+async function getUploadedVideos(db: any, wallet: string, res: VercelResponse) {
+  try {
+    const videos = await db.collection('videos').find({ 
+      creatorWallet: wallet.toLowerCase() 
+    }).sort({ createdAt: -1 }).toArray();
+    
+    return res.status(200).json(videos);
+  } catch (error) {
+    console.error('Get uploaded videos error:', error);
+    return res.status(500).json({ error: 'Failed to fetch uploaded videos' });
+  }
+}
+
+async function getWithdrawalHistory(db: any, wallet: string, res: VercelResponse) {
+  try {
+    const withdrawals = await db.collection('withdrawalHistory').find({ 
+      walletAddress: wallet.toLowerCase() 
+    }).sort({ createdAt: -1 }).limit(50).toArray();
+    
+    return res.status(200).json(withdrawals);
+  } catch (error) {
+    console.error('Get withdrawal history error:', error);
+    return res.status(500).json({ error: 'Failed to fetch withdrawal history' });
+  }
+}
+
+async function addCredits(db: any, wallet: string, req: VercelRequest, res: VercelResponse) {
+  try {
+    const { amount } = req.body;
+    
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ error: 'Invalid amount' });
+    }
+
+    const result = await db.collection('users').updateOne(
+      { walletAddress: wallet.toLowerCase() },
+      { 
+        $inc: { credits: amount },
+        $set: { lastLoginAt: new Date() }
+      }
+    );
+
+    if (result.matchedCount === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    return res.status(200).json({ success: true, amount });
+  } catch (error) {
+    console.error('Add credits error:', error);
+    return res.status(500).json({ error: 'Failed to add credits' });
+  }
+}
+
+async function processWithdrawal(db: any, wallet: string, req: VercelRequest, res: VercelResponse) {
+  try {
+    const { amount, recipientAddress } = req.body;
+    
+    if (!amount || amount < 5) {
+      return res.status(400).json({ error: 'Minimum withdrawal is 5 USDC' });
+    }
+
+    const user = await db.collection('users').findOne({ walletAddress: wallet.toLowerCase() });
+    
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    if (user.tipBalance < amount) {
+      return res.status(400).json({ error: 'Insufficient tip balance' });
+    }
+
+    // Deduct from user balance
+    await db.collection('users').updateOne(
+      { walletAddress: wallet.toLowerCase() },
+      { $inc: { tipBalance: -amount } }
+    );
+
+    // Record withdrawal
+    const withdrawal = {
+      walletAddress: wallet.toLowerCase(),
+      amount,
+      recipientAddress: recipientAddress || wallet.toLowerCase(),
+      status: 'pending',
+      createdAt: new Date()
+    };
+
+    const result = await db.collection('withdrawalHistory').insertOne(withdrawal);
+
+    return res.status(200).json({ success: true, withdrawalId: result.insertedId });
+  } catch (error) {
+    console.error('Process withdrawal error:', error);
+    return res.status(500).json({ error: 'Failed to process withdrawal' });
+  }
+}
+
+async function createUser(db: any, wallet: string, req: VercelRequest, res: VercelResponse) {
+  try {
+    const existingUser = await db.collection('users').findOne({ walletAddress: wallet.toLowerCase() });
+    
+    if (existingUser) {
+      return res.status(200).json({ message: 'User already exists', user: existingUser });
+    }
+
+    const newUser = {
+      walletAddress: wallet.toLowerCase(),
+      credits: 0,
+      tipBalance: 0,
+      totalTipsReceived: 0,
+      createdAt: new Date(),
+      lastLoginAt: new Date()
+    };
+
+    const result = await db.collection('users').insertOne(newUser);
+
+    return res.status(201).json({ 
+      success: true, 
+      userId: result.insertedId,
+      walletAddress: wallet.toLowerCase()
+    });
+  } catch (error) {
+    console.error('Create user error:', error);
+    return res.status(500).json({ error: 'Failed to create user' });
+  }
+}

@@ -1,7 +1,9 @@
 import connectDB from '../lib/database';
-import User from '../models/User';
-import Video from '../models/Video';
-import type { IUser } from '../models/User';
+import User from '../models/User.js';
+import Video from '../models/Video.js';
+import type { IUser } from '../models/User.ts';
+
+const API_BASE: string = (import.meta as any)?.env?.DEV ? ((import.meta as any)?.env?.VITE_API_BASE_URL || '') : '';
 
 // Create or get user by wallet address
 export async function createOrGetUserByWallet(walletAddress: string, userData?: {
@@ -512,60 +514,48 @@ export async function getViewCredits(walletAddress: string) {
 
 export async function addViewCredits(walletAddress: string, creditsToAdd: number) {
   try {
-    console.log('🔄 Adding view credits via API:', { walletAddress, creditsToAdd });
+    const tryRequest = async (url: string, payload: any) => {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      return response;
+    };
 
-    const response = await fetch('/api/users/add-credits', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        walletAddress: walletAddress,
-        creditsToAdd: creditsToAdd
-      })
-    });
-
-    // Check if response is OK and has content
-    if (!response.ok) {
-      let errorData;
-      try {
-        errorData = await response.json();
-      } catch (jsonError) {
-        // If JSON parsing fails, use text response
-        const textError = await response.text();
-        console.error('❌ API response not ok (non-JSON):', response.status, textError);
-        return {
-          success: false,
-          error: `HTTP error! status: ${response.status}, response: ${textError}`
-        };
+    let response = await tryRequest(`${API_BASE}/api/users/add-credits`, { walletAddress, creditsToAdd });
+    if (!response.ok && response.status === 404) {
+      response = await tryRequest(`${API_BASE}/api/users/actions?slug=${encodeURIComponent(walletAddress)},add-credits`, { amount: creditsToAdd });
+      if (!response.ok && response.status === 404) {
+        response = await tryRequest(`${API_BASE}/api/users/${walletAddress}/actions?action=add-credits`, { amount: creditsToAdd });
       }
-      
-      console.error('❌ API response not ok:', response.status, errorData);
-      return {
-        success: false,
-        error: errorData.error || `HTTP error! status: ${response.status}`
-      };
     }
 
-    // Parse successful response
-    let result;
+    if (!response.ok) {
+      let errorMessage = `HTTP error! status: ${response.status}`;
+      try {
+        const errJson = await response.clone().json();
+        errorMessage = errJson.error || errorMessage;
+      } catch {
+        try {
+          const errText = await response.clone().text();
+          errorMessage = `${errorMessage}, response: ${errText}`;
+        } catch {}
+      }
+      return { success: false, error: errorMessage };
+    }
+
     try {
-      result = await response.json();
-      console.log('✅ Credits added successfully:', result);
-    } catch (jsonError) {
-      console.error('❌ Failed to parse JSON response:', jsonError);
-      return {
-        success: false,
-        error: 'Invalid response format from server'
-      };
+      const result = await response.json();
+      return result;
+    } catch {
+      const text = await response.clone().text();
+      return { success: false, error: `Invalid response format: ${text.slice(0, 200)}` };
     }
-
-    return result;
   } catch (error: any) {
-    console.error('❌ Error adding view credits:', error);
     return {
       success: false,
-      error: `Network error: ${error.message || 'Failed to add view credits'}`
+      error: `Network error: ${error?.message || 'Failed to add view credits'}`
     };
   }
 }
@@ -574,7 +564,7 @@ export async function getUserCredits(walletAddress: string) {
   try {
     console.log('🔄 Fetching user credits via API:', { walletAddress });
 
-    const response = await fetch(`/api/users/${walletAddress}/credits`, {
+    const response = await fetch(`${API_BASE}/api/users/${walletAddress}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -604,6 +594,15 @@ export async function getUserCredits(walletAddress: string) {
 
     const result = await response.json();
     console.log('✅ User credits fetched successfully:', result);
+    
+    // Vercel API returns full user data, extract just the credits
+    if (result.success && result.data) {
+      return {
+        success: true,
+        data: { viewCredits: result.data.viewCredits }
+      };
+    }
+    
     return result;
   } catch (error: any) {
     console.error('❌ Error fetching user credits:', error);
@@ -619,15 +618,14 @@ export async function withdrawTips(walletAddress: string, amount: number) {
   try {
     console.log('🔄 Withdrawing tips via API:', { walletAddress, amount });
 
-    const response = await fetch('/api/users/actions', {
+    const response = await fetch(`${API_BASE}/api/users/actions/${walletAddress}/withdraw`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        action: 'withdraw',
-        walletAddress,
-        amount
+        amount,
+        recipientAddress: walletAddress
       })
     });
 

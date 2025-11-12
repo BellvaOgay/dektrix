@@ -262,7 +262,7 @@ app.post('/api/users/create', async (req, res) => {
 // Add view credits to user
 app.post('/api/users/add-credits', async (req, res) => {
   try {
-    const { walletAddress, creditsToAdd } = req.body;
+    const { walletAddress, creditsToAdd, amount } = req.body;
 
     if (!walletAddress || typeof walletAddress !== 'string') {
       return res.status(400).json({ 
@@ -271,7 +271,10 @@ app.post('/api/users/add-credits', async (req, res) => {
       });
     }
 
-    if (!creditsToAdd || typeof creditsToAdd !== 'number' || creditsToAdd <= 0) {
+    // Support both 'creditsToAdd' and 'amount' parameters for backward compatibility
+    const credits = creditsToAdd || amount;
+    
+    if (!credits || typeof credits !== 'number' || credits <= 0) {
       return res.status(400).json({ 
         success: false, 
         error: 'Valid credits amount is required' 
@@ -289,7 +292,7 @@ app.post('/api/users/add-credits', async (req, res) => {
     }
 
     // Add credits to user
-    const add = Math.max(creditsToAdd, 0);
+    const add = Math.max(credits, 0);
     user.viewCredits = (user.viewCredits || 0) + add;
     await user.save();
 

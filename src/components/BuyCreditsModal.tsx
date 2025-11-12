@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { X, Zap, CreditCard } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -22,7 +22,13 @@ const creditPackages = [
 export function BuyCreditsModal({ isOpen, onClose, onCreditsPurchased }: BuyCreditsModalProps) {
   const [selectedPackage, setSelectedPackage] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
-  const { user: walletUser, sendGaslessTransaction } = useBaseWallet();
+  const { user: walletUser, sendGaslessTransaction, connect, isConnecting, refreshUser, isConnected } = useBaseWallet();
+
+  useEffect(() => {
+    if (isOpen && isConnected && !walletUser) {
+      refreshUser();
+    }
+  }, [isOpen, isConnected, walletUser, refreshUser]);
 
   const handlePurchase = async () => {
     if (!walletUser?.walletAddress) {
@@ -67,6 +73,8 @@ export function BuyCreditsModal({ isOpen, onClose, onCreditsPurchased }: BuyCred
           if (onCreditsPurchased) {
             onCreditsPurchased(packageInfo.credits, creditResult.data.viewCredits);
           }
+
+          await refreshUser();
 
           onClose();
         } else {
@@ -150,6 +158,16 @@ export function BuyCreditsModal({ isOpen, onClose, onCreditsPurchased }: BuyCred
             >
               Cancel
             </Button>
+            {!isConnected && (
+              <Button
+                onClick={connect}
+                disabled={isConnecting || isProcessing}
+                className="flex-1"
+                variant="default"
+              >
+                {isConnecting ? "Connecting..." : "Connect Wallet"}
+              </Button>
+            )}
             <Button
               onClick={handlePurchase}
               disabled={isProcessing || !walletUser}
@@ -169,7 +187,12 @@ export function BuyCreditsModal({ isOpen, onClose, onCreditsPurchased }: BuyCred
             </Button>
           </div>
 
-          {!walletUser && (
+          {isConnected && !walletUser && (
+            <div className="text-xs text-muted-foreground text-center">
+              Loading profile...
+            </div>
+          )}
+          {!isConnected && (
             <div className="text-xs text-muted-foreground text-center">
               Connect your wallet to purchase credits
             </div>

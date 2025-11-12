@@ -5,11 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "npm run build:api && vite build",
+    "build:api": "node build-api.cjs",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
-    "vercel-build": "vite build",
+    "vercel-build": "npm run build:api && vite build",
     "seed:videos": "node add-sample-videos.cjs"
   },
   "dependencies": {

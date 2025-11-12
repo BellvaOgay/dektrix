@@ -5,10 +5,10 @@ import {
   createCategory,
   getCategories
 } from '../api';
-import User from '../models/User';
-import Video from '../models/Video';
-import Category from '../models/Category';
-import Transaction from '../models/Transaction';
+import User from '../models/User.js';
+import Video from '../models/Video.js';
+import Category from '../models/Category.js';
+import Transaction from '../models/Transaction.js';
 
 // Test database connection and basic operations
 export async function testDatabaseOperations() {

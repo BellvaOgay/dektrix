@@ -263,19 +263,27 @@ export const useBaseWallet = (): UseBaseWalletReturn => {
     try {
       console.log('🔄 Creating/getting user via API endpoint:', walletAddress);
 
-      const response = await fetch('/api/users/create', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+      // Try Vercel serverless actions route first, then fall back to local Express
+      const tryPost = async (url: string, payload: any) => {
+        return fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+      };
+
+      let response = await tryPost(`${API_BASE}/api/users/actions?slug=${encodeURIComponent(walletAddress)},create`, {});
+      if (!response.ok) {
+        response = await tryPost(`${API_BASE}/api/users/create`, {
           walletAddress: walletAddress,
-          userData: {
-            // Let backend handle username generation to avoid duplicates
+          displayName: `User ${walletAddress.slice(-8)}`
+        });
+        if (!response.ok) {
+          response = await tryPost(`${API_BASE}/api/users/${walletAddress}/actions?action=create`, {
             displayName: `User ${walletAddress.slice(-8)}`
-          }
-        })
-      });
+          });
+        }
+      }
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -500,7 +508,15 @@ export const useBaseWallet = (): UseBaseWalletReturn => {
     try {
       console.log('🔄 Refreshing user data via API endpoint:', walletState.address);
 
-      const response = await fetch(`/api/users/${walletState.address}`);
+      // Try Vercel serverless actions profile route first, then fall back to local Express
+      const tryGet = async (url: string) => fetch(url);
+      let response = await tryGet(`${API_BASE}/api/users/actions?slug=${encodeURIComponent(walletState.address)},get-profile`);
+      if (!response.ok) {
+        response = await tryGet(`${API_BASE}/api/users/${walletState.address}`);
+        if (!response.ok) {
+          response = await tryGet(`${API_BASE}/api/users/${walletState.address}/actions?action=get-profile`);
+        }
+      }
 
       if (!response.ok) {
         if (response.status === 404) {
@@ -872,3 +888,4 @@ export const useBaseWallet = (): UseBaseWalletReturn => {
     getCurrentNetwork,
   };
 };
+const API_BASE: string = (import.meta as any)?.env?.DEV ? ((import.meta as any)?.env?.VITE_API_BASE_URL || '') : '';

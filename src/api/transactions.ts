@@ -1,8 +1,8 @@
 import connectDB from '../lib/database';
-import Transaction from '../models/Transaction';
-import User from '../models/User';
-import Video from '../models/Video';
-import type { ITransaction } from '../models/Transaction';
+import Transaction from '../models/Transaction.js';
+import User from '../models/User.js';
+import Video from '../models/Video.js';
+import type { ITransaction } from '../models/Transaction.ts';
 import { applyBasePay } from '../lib/utils';
 
 // Get user's transaction history

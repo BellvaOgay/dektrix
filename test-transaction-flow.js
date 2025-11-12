@@ -21,7 +21,7 @@ async function testTransactionFlow() {
     
     // Import models
     const User = (await import('./src/models/User.js')).default;
-    const Video = (await import('./src/models/Video.js')).default;
+const Video = (await import('./src/models/Video.js')).default;
     const Transaction = (await import('./src/models/Transaction.js')).default;
     
     console.log('🧪 Testing transaction flow...');

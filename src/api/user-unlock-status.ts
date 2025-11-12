@@ -1,6 +1,6 @@
 import connectDB from '../lib/database';
-import User from '../models/User';
-import Video from '../models/Video';
+import User from '../models/User.js';
+import Video from '../models/Video.js';
 
 // Check if user has unlocked a specific video
 export async function checkVideoUnlockStatus(userId: string, videoId: string) {

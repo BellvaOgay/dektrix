@@ -1,0 +1,22 @@
+# Ignore compiled API files to prevent CommonJS/ES module conflicts
+api-compiled/
+
+# Ignore development and test files
+*.log
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Ignore build artifacts
+node_modules/
+dist/
+build/
+
+# Ignore IDE files
+.vscode/
+.idea/
+
+# Ignore temporary files
+*.tmp
+*.temp

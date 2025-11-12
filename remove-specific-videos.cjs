@@ -37,30 +37,30 @@ async function findAndRemoveVideos() {
 
   for (const dbInfo of databases) {
     console.log(`📂 Checking database: ${dbInfo.name}`);
-    
+
     try {
       // Connect to the specific database
       const connection = await mongoose.createConnection(dbInfo.uri);
       const Video = connection.model('Video', videoSchema);
-      
+
       // Create search patterns for case-insensitive matching
       const searchPatterns = videosToRemove.map(term => ({
         title: { $regex: term, $options: 'i' }
       }));
-      
+
       // Find matching videos
       const matchingVideos = await Video.find({
         $or: searchPatterns
       });
-      
+
       if (matchingVideos.length === 0) {
         console.log(`   ℹ️  No matching videos found in ${dbInfo.name}`);
       } else {
         console.log(`   🎯 Found ${matchingVideos.length} matching video(s) in ${dbInfo.name}:`);
-        
+
         for (const video of matchingVideos) {
           console.log(`      - ID: ${video._id}, Title: "${video.title}", URL: ${video.videoUrl}`);
-          
+
           try {
             // Remove the video
             await Video.findByIdAndDelete(video._id);
@@ -70,15 +70,15 @@ async function findAndRemoveVideos() {
           }
         }
       }
-      
+
       // Close the connection
       await connection.close();
-      
+
     } catch (error) {
       console.log(`❌ Error accessing ${dbInfo.name}:`, error.message);
     }
   }
-  
+
   console.log('');
   console.log('🔄 Video removal process completed.');
 }

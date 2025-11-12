@@ -1,7 +1,7 @@
 import connectDB from '../lib/database';
-import Category from '../models/Category';
-import Video from '../models/Video';
-import type { ICategory } from '../models/Category';
+import Category from '../models/Category.js';
+import Video from '../models/Video.js';
+import type { ICategory } from '../models/Category.ts';
 
 // Get all categories
 export async function getCategories(filters?: {

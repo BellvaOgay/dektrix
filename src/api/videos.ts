@@ -1,10 +1,10 @@
 import { logger } from '@/lib/logger';
 import connectDB from '../lib/database';
-import Video from '../models/Video';
-import User from '../models/User';
-import Transaction from '../models/Transaction';
-import type { IVideo } from '../models/Video';
-import type { IUser } from '../models/User';
+import Video from '../models/Video.js';
+import User from '../models/User.js';
+import Transaction from '../models/Transaction.js';
+import type { IVideo } from '../models/Video.ts';
+import type { IUser } from '../models/User.ts';
 import { applyBasePay, getPerViewChargeAmount, formatUSDC, calculateBasePayPrice, isBasePayEnabled } from '../lib/utils';
 import { discoverLocalVideos, generateVideoMetadata } from '@/utils/videoScanner';
 

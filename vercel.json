@@ -1,7 +1,35 @@
 {
+  "version": 2,
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
+  "functions": {
+    "api/**/*.js": {
+      "runtime": "@vercel/node@4.0.0"
+    }
+  },
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/$1" },
+    { "source": "/videos", "destination": "/dist/index.html" },
+    { "source": "/profile", "destination": "/dist/index.html" },
+    { "source": "/profile/:walletAddress", "destination": "/dist/index.html" },
+    { "source": "/admin", "destination": "/dist/index.html" },
+    { "source": "/admin/upload", "destination": "/dist/index.html" },
+    { "source": "/creator/:wallet", "destination": "/dist/index.html" },
+    { "source": "/generic-videos", "destination": "/dist/index.html" },
+    { "source": "/private/:filename", "destination": "/dist/index.html" },
+    { "source": "/(.*)", "destination": "/dist/$1" }
+  ],
+  
   "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https:; media-src 'self' blob:; frame-ancestors 'self'; object-src 'none'"
+        }
+      ]
+    },
     {
       "source": "/videos/(.*\\.mp4)",
       "headers": [

@@ -4,7 +4,7 @@ import { recordVideoView, unlockVideo, unlockVideoWithBasePay, getVideos } from 
 import { useBaseWallet } from "@/hooks/useBaseWallet";
 import { useToast } from "@/hooks/use-toast";
 import { useCategory } from "@/contexts/CategoryContext";
-import { encodeFunctionData, isAddress, getAddress } from "viem";
+import { Interface, isAddress, getAddress } from "ethers";
 import { addViewCredits } from "@/api/users";
 import { discoverLocalVideos, generateVideoMetadata } from "@/utils/videoScanner";
 
@@ -246,11 +246,8 @@ const VideoFeed = () => {
 
       // 1 USDC with 6 decimals
       const amount = 1_000_000n;
-      const data = encodeFunctionData({
-        abi: ERC20_ABI,
-        functionName: 'transfer',
-        args: [receiver, amount]
-      });
+      const iface = new Interface(ERC20_ABI);
+      const data = iface.encodeFunctionData('transfer', [receiver, amount]);
 
       console.log('💸 Sending USDC transaction...', { to: usdcAddress, amount: amount.toString() });
       const txHash = await sendGaslessTransaction(usdcAddress, data, '0x0');

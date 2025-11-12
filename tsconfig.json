@@ -1,7 +1,4 @@
 {
-    "files":  [
-
-              ],
     "references":  [
                        {
                            "path":  "./tsconfig.app.json"
@@ -23,5 +20,27 @@
                             "allowJs":  true,
                             "noUnusedLocals":  false,
                             "strictNullChecks":  false
-                        }
+                        },
+    "exclude": [
+        "add-*.cjs",
+        "check-*.cjs",
+        "test-*.js",
+        "test-*.mjs",
+        "test-*.html",
+        "*.cjs",
+        "*.js",
+        "*.mjs",
+        "api-compiled/**/*",
+        "api/**/*",
+        "dist/**/*",
+        "server.cjs",
+        "upload.js",
+        "utils.js",
+        "video-middleware*.js",
+        "debug-*.html",
+        "debug-*.mjs",
+        "eslint.config.js",
+        "postcss.config.js",
+        "tailwind.config.ts"
+    ]
 }

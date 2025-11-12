@@ -1,4 +1,4 @@
-import { encodeFunctionData, parseUnits } from 'viem';
+import { Interface, parseUnits } from 'ethers';
 
 // ERC20 ABI for transfer function
 const ERC20_ABI = [
@@ -37,11 +37,8 @@ export class PaymasterService {
       const amountInWei = parseUnits(amount.toString(), 6);
       
       // Encode the ERC20 transfer call
-      const data = encodeFunctionData({
-        abi: ERC20_ABI,
-        functionName: 'transfer',
-        args: [this.getReceiverAddress(), amountInWei]
-      });
+      const iface = new Interface(ERC20_ABI);
+      const data = iface.encodeFunctionData('transfer', [this.getReceiverAddress(), amountInWei]);
 
       // Send gasless transaction
       const transactionHash = await sendGaslessTransaction(this.getUSDCAddress(), data, '0x0');
@@ -69,11 +66,8 @@ export class PaymasterService {
       const amountInWei = parseUnits(amount.toString(), 6);
       
       // Encode the ERC20 transfer call
-      const data = encodeFunctionData({
-        abi: ERC20_ABI,
-        functionName: 'transfer',
-        args: [this.getReceiverAddress(), amountInWei]
-      });
+      const iface = new Interface(ERC20_ABI);
+      const data = iface.encodeFunctionData('transfer', [this.getReceiverAddress(), amountInWei]);
 
       // Send gasless transaction
       const transactionHash = await sendGaslessTransaction(this.getUSDCAddress(), data, '0x0');
