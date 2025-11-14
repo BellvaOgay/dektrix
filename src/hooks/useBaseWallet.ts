@@ -166,7 +166,7 @@ export const useBaseWallet = (): UseBaseWalletReturn => {
 
   // Initialize Base Account SDK with proper error handling
   const initializeSDK = useCallback(async (): Promise<any> => {
-    if (sdkInitialized) return;
+    if (sdkInitialized && provider) return provider;
 
     try {
       logger.log('🔧 Initializing Base Account SDK...');
@@ -571,7 +571,8 @@ export const useBaseWallet = (): UseBaseWalletReturn => {
     if (!provider) {
       console.warn('⏳ Wallet provider not ready, attempting initialization...');
       const newProvider = await initializeSDK();
-      if (!newProvider) {
+      const effective = provider || newProvider;
+      if (!effective) {
         console.error('❌ Wallet provider not initialized');
         setWalletState(prev => ({
           ...prev,
@@ -579,6 +580,7 @@ export const useBaseWallet = (): UseBaseWalletReturn => {
         }));
         return;
       }
+      if (!provider && effective) setProvider(effective);
     }
 
     console.log('⏳ Setting connecting state...');

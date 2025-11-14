@@ -226,10 +226,34 @@ const VideoCard = ({
     if (e.key === 'Escape' && isModalMounted) {
       e.preventDefault();
       closeModal();
+      return;
     }
     if (e.key === 'Escape' && showTipModal) {
       e.preventDefault();
       setShowTipModal(false);
+      return;
+    }
+    // Modal playback shortcuts
+    if (isModalMounted && modalVideoRef.current) {
+      // Space: toggle play/pause
+      if (e.key === ' ' || e.code === 'Space') {
+        e.preventDefault();
+        if (modalVideoRef.current.paused) {
+          modalVideoRef.current.play().catch(() => {});
+        } else {
+          modalVideoRef.current.pause();
+        }
+      }
+      // ArrowLeft/ArrowRight: seek ±5s
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        modalVideoRef.current.currentTime = Math.max(0, modalVideoRef.current.currentTime - 5);
+      }
+      if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        const dur = isNaN(modalVideoRef.current.duration) ? Infinity : modalVideoRef.current.duration;
+        modalVideoRef.current.currentTime = Math.min(dur, modalVideoRef.current.currentTime + 5);
+      }
     }
   };
 
@@ -336,6 +360,8 @@ const VideoCard = ({
     requestAnimationFrame(() => {
       console.log('Setting isModalVisible to true');
       setIsModalVisible(true);
+      // Show native controls initially for better usability
+      setShowVideoControls(true);
     });
   };
 
@@ -721,44 +747,42 @@ const VideoCard = ({
             
             {/* Video Container */}
             <div 
-              className="relative bg-black cursor-pointer"
+              className="relative bg-black"
               onClick={(e) => {
                 e.stopPropagation();
-                
-                // Clear any existing timeout
-                if (controlsTimeoutRef.current) {
-                  clearTimeout(controlsTimeoutRef.current);
-                  controlsTimeoutRef.current = null;
+                const target = e.target as Node;
+                if (modalVideoRef.current && modalVideoRef.current.contains(target)) {
+                  return;
                 }
-                
-                // Toggle controls visibility and get the new value
-                setShowVideoControls(prev => {
-                  const newValue = !prev;
-                  
-                  // If showing controls, set timeout to hide them after 3 seconds
-                  if (newValue) {
-                    controlsTimeoutRef.current = setTimeout(() => {
-                      setShowVideoControls(false);
-                      controlsTimeoutRef.current = null;
-                    }, 3000);
-                  }
-                  
-                  return newValue;
-                });
+                setShowVideoControls(true);
+                resetControlsTimer();
               }}
             >
               <div className="aspect-video">
                 <video
                   ref={modalVideoRef}
-                  className="w-full h-full object-contain"
+                  className="relative z-10 w-full h-full object-contain"
                   src={src}
                   muted={isInitiallyMuted}
                   playsInline
                   poster={thumbnail}
-                  controls={showVideoControls}
+                  controls
+                  controlsList="nodownload"
+                  style={{ touchAction: 'manipulation' }}
+                  onMouseMove={(e) => {
+                    e.stopPropagation();
+                    setShowVideoControls(true);
+                    resetControlsTimer();
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowVideoControls(true);
+                    resetControlsTimer();
+                  }}
                   onPlay={() => {
                     console.log('Modal video playing:', title);
                     setIsVideoLoading(false);
+                    runCreditDeductionOnPlay();
                   }}
                   onPause={() => console.log('Modal video paused:', title)}
                   onError={(e) => {
@@ -804,7 +828,7 @@ const VideoCard = ({
                 
                 {/* Click to show controls overlay */}
                 {!showVideoControls && !isVideoLoading && !videoError && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 hover:opacity-100 transition-opacity duration-300">
+                  <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 hover:opacity-100 transition-opacity duration-300">
                     <div className="text-center">
                       <div className="bg-white/20 backdrop-blur-sm rounded-full p-4 mb-2">
                         <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -819,7 +843,7 @@ const VideoCard = ({
                 
                 {/* Custom video controls overlay */}
                 {showVideoControls && !isVideoLoading && !videoError && (
-                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
+                  <div className="pointer-events-none absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <button
@@ -893,14 +917,25 @@ const VideoCard = ({
                       </div>
                     </div>
                     
-                    {/* Progress bar */}
+                    {/* Progress bar (click to seek) */}
                     {durationTime > 0 && (
-                      <div className="mt-2 w-full bg-white/20 rounded-full h-1">
-                        <div 
+                      <div
+                        className="mt-2 w-full bg-white/20 rounded-full h-1 relative cursor-pointer"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (!modalVideoRef.current || durationTime <= 0) return;
+                          const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+                          const x = e.clientX - rect.left;
+                          const pct = Math.min(1, Math.max(0, x / rect.width));
+                          modalVideoRef.current.currentTime = pct * durationTime;
+                          setCurrentTime(modalVideoRef.current.currentTime);
+                        }}
+                        aria-label="Seek"
+                        title="Click to jump in the video"
+                      >
+                        <div
                           className="bg-white h-1 rounded-full transition-all duration-300"
-                          style={{
-                            width: `${(currentTime / durationTime) * 100}%`
-                          }}
+                          style={{ width: `${(currentTime / durationTime) * 100}%` }}
                         />
                       </div>
                     )}
@@ -973,3 +1008,13 @@ const VideoCard = ({
 }
 
 export default VideoCard;
+  const resetControlsTimer = () => {
+    if (controlsTimeoutRef.current) {
+      clearTimeout(controlsTimeoutRef.current);
+      controlsTimeoutRef.current = null;
+    }
+    controlsTimeoutRef.current = setTimeout(() => {
+      setShowVideoControls(false);
+      controlsTimeoutRef.current = null;
+    }, 3000);
+  };
