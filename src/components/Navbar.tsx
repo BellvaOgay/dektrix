@@ -36,7 +36,6 @@ const Navbar = () => {
 
   const getCurrentTab = () => {
     if (location.pathname === "/videos") return "videos";
-    if (location.pathname === "/creator") return "creator";
     return "home";
   };
 
@@ -47,8 +46,6 @@ const Navbar = () => {
       navigate("/");
     } else if (value === "videos") {
       navigate("/videos");
-    } else if (value === "creator") {
-      navigate("/creator");
     }
   };
 
@@ -92,7 +89,7 @@ const Navbar = () => {
 
             {/* Navigation Tabs */}
             <Tabs value={currentTab} onValueChange={handleTabChange} className="hidden md:block">
-              <TabsList className="grid w-full grid-cols-3">
+              <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="home" className="flex items-center gap-2">
                   <Home className="w-4 h-4" />
                   Home
@@ -100,10 +97,6 @@ const Navbar = () => {
                 <TabsTrigger value="videos" className="flex items-center gap-2">
                   <Play className="w-4 h-4" />
                   Videos
-                </TabsTrigger>
-                <TabsTrigger value="creator" className="flex items-center gap-2">
-                  <User className="w-4 h-4" />
-                  Creator
                 </TabsTrigger>
 
               </TabsList>
@@ -202,10 +195,7 @@ const Navbar = () => {
                     <User className="w-4 h-4 mr-2" />
                     Profile
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => navigate("/creator")} className="cursor-pointer">
-                    <User className="w-4 h-4 mr-2" />
-                    Creator Profile
-                  </DropdownMenuItem>
+                  
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleDisconnect} className="cursor-pointer text-red-600 focus:text-red-600">
                     <LogOut className="w-4 h-4 mr-2" />

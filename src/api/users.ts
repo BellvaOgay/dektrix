@@ -78,8 +78,52 @@ export async function createOrGetUserByWallet(walletAddress: string, userData?: 
 // Get user by wallet address
 export async function getUserByWallet(walletAddress: string) {
   try {
-    await connectDB();
+    // In browser, use serverless API endpoints
+    if (typeof window !== 'undefined') {
+      const addr = walletAddress.toLowerCase();
+      const tryGet = async (url: string) => fetch(url);
+      let response = await tryGet(`/api/users/actions?slug=${encodeURIComponent(addr)},get-profile`);
+      if (!response.ok) {
+        response = await tryGet(`/api/users/${addr}`);
+      }
 
+      if (!response.ok) {
+        // Fallback: create default profile for new users
+        const create = await fetch(`/api/users/actions?slug=${encodeURIComponent(addr)},create`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: '{}'
+        });
+        if (!create.ok) {
+          const errText = await create.text();
+          return { success: false, error: `Failed to fetch or create user: ${errText}` };
+        }
+        const createJson = await create.json();
+        if (createJson && createJson.success && createJson.data) {
+          const data = normalizeUserFields(createJson.data);
+          return { success: true, data };
+        }
+        return { success: false, error: createJson?.error || 'Failed to create user' };
+      }
+
+      // Parse response from GET
+      let json: any;
+      try {
+        json = await response.json();
+      } catch (e) {
+        const text = await response.text();
+        return { success: false, error: `Invalid profile response: ${text.slice(0,200)}` };
+      }
+
+      if (json && json.success && json.data) {
+        const data = normalizeUserFields(json.data);
+        return { success: true, data };
+      }
+      return { success: false, error: json?.error || 'Failed to fetch user' };
+    }
+
+    // Server-side fallback
+    await connectDB();
     const user = await (User as any).findOne({ walletAddress: walletAddress.toLowerCase() })
       .populate('userContainer.purchasedVideos', 'title thumbnail duration price')
       .populate('userContainer.uploadedVideos', 'title thumbnail duration')
@@ -87,23 +131,30 @@ export async function getUserByWallet(walletAddress: string) {
       .lean();
 
     if (!user) {
-      return {
-        success: false,
-        error: 'User not found'
-      };
+      return { success: false, error: 'User not found' };
     }
-
-    return {
-      success: true,
-      data: user
-    };
+    return { success: true, data: normalizeUserFields(user) };
   } catch (error) {
     console.error('Error fetching user by wallet:', error);
-    return {
-      success: false,
-      error: 'Failed to fetch user'
-    };
+    return { success: false, error: 'Failed to fetch user' };
   }
+}
+
+function normalizeUserFields(u: any) {
+  return {
+    _id: u._id,
+    walletAddress: u.walletAddress || u.wallet_address || '',
+    username: u.username || u.displayName || (u.walletAddress ? `user_${u.walletAddress.slice(-8)}` : ''),
+    bio: u.bio || '',
+    avatar: u.avatar || '',
+    viewCredits: u.viewCredits ?? u.credits ?? 0,
+    totalTipsEarned: u.totalTipsEarned ?? 0,
+    totalTipsSpent: u.totalTipsSpent ?? 0,
+    videosUnlocked: u.videosUnlocked || [],
+    videosTipped: u.videosTipped || [],
+    uploadedVideos: (u.userContainer?.uploadedVideos) || u.uploadedVideos || [],
+    withdrawalHistory: u.withdrawalHistory || []
+  } as any;
 }
 
 // Add video to user's purchased videos
